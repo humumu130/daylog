@@ -14,7 +14,7 @@ import type { RecordInput } from '../../services/db';
 import * as db from '../../services/db';
 import { currentYM, formatYMDChinese, monthRange, todayYMD } from '../../utils/date';
 import { formatHours } from '../../utils/halfDay';
-import { formatZhuchiyu } from '../../utils/zhuchiyu';
+import { formatDailyLog } from '../../utils/dailyLog';
 import { copyText } from '../../services/clipboard';
 
 const quarterMonths: Record<number, [number, number]> = { 1: [1, 3], 2: [4, 6], 3: [7, 9], 4: [10, 12] };
@@ -67,7 +67,7 @@ export function CalendarPage() {
 
   function flash(m: string) { setNotice(m); setTimeout(() => setNotice(''), 1800); }
   async function onCopyMonth() {
-    const t = formatZhuchiyu({ records, tasks, projects });
+    const t = formatDailyLog({ records, tasks, projects });
     await copyText(t || '（无记录）'); flash('已复制');
   }
   async function onSubmit(input: RecordInput, existing?: WorkRecord) {
@@ -92,7 +92,7 @@ export function CalendarPage() {
               <Button icon={<ArrowLeftRegular />} onClick={() => setYm((v) => shiftMonth(v, -1))} />
               <Button onClick={() => { setYm(currentYM()); setSelectedDay(todayYMD()); }}>本月</Button>
               <Button icon={<ArrowRightRegular />} onClick={() => setYm((v) => shiftMonth(v, 1))} />
-              <Button icon={<CopyRegular />} onClick={() => void onCopyMonth()}>复制</Button>
+              <Button icon={<CopyRegular />} onClick={() => void onCopyMonth()}>复制日报</Button>
             </>
           ) : (
             <>

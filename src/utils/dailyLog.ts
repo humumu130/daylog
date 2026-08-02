@@ -21,13 +21,13 @@ function formatRecordLine(r: WorkRecord, ctx: ExportContext): string {
 }
 
 /**
- * 猪齿鱼友好格式：按"天 × 半天"聚合，每个半天汇总一条。
+ * 日报导出格式：按"天 × 半天"聚合，每个半天汇总一条，便于粘贴到工作日志系统。
  * 示例：
  *   2026-07-31（周四）
- *     上午 3.5h：登录页修复[用户中心重构]；评审 PR #123 0.5h
+ *     上午 3.5h：登录页修复[用户中心重构]；评审 PR 0.5h
  *     下午 4.0h：接口联调；排查告警
  */
-export function formatZhuchiyu(ctx: ExportContext, dayFilter?: string): string {
+export function formatDailyLog(ctx: ExportContext, dayFilter?: string): string {
   const records = dayFilter ? ctx.records.filter((r) => r.day === dayFilter) : ctx.records;
   if (records.length === 0) return '';
 

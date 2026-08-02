@@ -202,6 +202,20 @@ export function GitPage() {
 
   const showSmart = gitMode === 'smart';
 
+  // 全选/取消全选（针对当前模式的可选条目：排除已导入/已有记录）
+  const selectableKeys = showSmart
+    ? smartItems.flatMap((item, i) => (!item.isExisting && !item.imported ? [`s${i}`] : []))
+    : commits.filter((c) => !c.imported).map((c) => `r${c.hash}${c.repoId}`);
+  const allSelected = selectableKeys.length > 0 && selectableKeys.every((k) => checked.has(k));
+  function toggleAll() {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (allSelected) selectableKeys.forEach((k) => next.delete(k));
+      else selectableKeys.forEach((k) => next.add(k));
+      return next;
+    });
+  }
+
   return (
     <div>
       <div className="page-head">
@@ -296,6 +310,9 @@ export function GitPage() {
           </div>
           <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
             {done && <span className="muted">{done}</span>}
+            <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
+              {allSelected ? '取消全选' : '全选'}
+            </Button>
             <Button appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
               导入选中 ({checked.size})
             </Button>
@@ -337,6 +354,9 @@ export function GitPage() {
           </div>
           <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
             {done && <span className="muted">{done}</span>}
+            <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
+              {allSelected ? '取消全选' : '全选'}
+            </Button>
             <Button appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
               导入选中 ({checked.size})
             </Button>
