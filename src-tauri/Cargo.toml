@@ -2,7 +2,7 @@
 name = "worklog"
 version = "0.1.0"
 description = "日迹 - 工作日志桌面插件"
-authors = ["you"]
+authors = ["humumu"]
 edition = "2021"
 
 [lib]

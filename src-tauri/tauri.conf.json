@@ -52,6 +52,8 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "humumu",
+    "copyright": "Copyright (c) 2026 humumu",
     "targets": "all",
     "icon": [
       "icons/32x32.png",
