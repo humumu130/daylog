@@ -255,6 +255,19 @@ export async function deleteRecord(id: string): Promise<void> {
   await (await db()).execute('DELETE FROM records WHERE id=$1', [id]);
 }
 
+/** 全局搜索记录内容（按内容模糊匹配，最近优先，最多 60 条） */
+export async function searchRecords(query: string): Promise<WorkRecord[]> {
+  const q = query.trim();
+  if (!q) return [];
+  // 转义 LIKE 通配符，避免用户输入的 % _ 被当通配
+  const escaped = q.replace(/[/%_]/g, (c) => '/' + c);
+  const rows = await (await db()).select<RecordRow[]>(
+    "SELECT * FROM records WHERE content LIKE $1 ESCAPE '/' ORDER BY created_at DESC LIMIT 60",
+    [`%${escaped}%`],
+  );
+  return rows.map(mapRecord);
+}
+
 // ---------- Templates / Reports (Phase 2 使用，先备好接口) ----------
 interface TemplateRow {
   id: string;

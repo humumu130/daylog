@@ -4,16 +4,20 @@ import { ArrowLeftRegular, ArrowRightRegular, CopyRegular } from '@fluentui/reac
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useTasksStore } from '../../stores/useTasksStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { TimelineEntry } from '../components/TimelineEntry';
 import { RecordEditor } from '../components/RecordEditor';
-import type { Half, Report, WorkRecord } from '../../types/models';
+import { ReportSection } from '../components/ReportSection';
+import type { Half, ReportTemplate, WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
 import * as db from '../../services/db';
 import { currentYM, formatYMDChinese, monthRange, todayYMD } from '../../utils/date';
 import { formatHours } from '../../utils/halfDay';
 import { formatZhuchiyu } from '../../utils/zhuchiyu';
 import { copyText } from '../../services/clipboard';
+
+const quarterMonths: Record<number, [number, number]> = { 1: [1, 3], 2: [4, 6], 3: [7, 9], 4: [10, 12] };
 
 function shiftMonth(ym: string, delta: number): string {
   const [y, m] = ym.split('-').map(Number);
@@ -27,9 +31,6 @@ export function CalendarPage() {
   const [year, setYear] = useState(currentYM().slice(0, 4));
   const [selectedDay, setSelectedDay] = useState(todayYMD());
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const [monthReports, setMonthReports] = useState<Report[]>([]);
-  const [ymReports, setYmReports] = useState<Report[]>([]);
-  const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [editor, setEditor] = useState<{ open: boolean; half: Half; record?: WorkRecord | null }>({ open: false, half: 'morning' });
 
@@ -40,19 +41,16 @@ export function CalendarPage() {
   const remove = useRecordsStore((s) => s.remove);
   const projects = useProjectsStore((s) => s.projects);
   const tasks = useTasksStore((s) => s.tasks);
+  const settings = useSettingsStore((s) => s.settings);
+
+  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
 
   useEffect(() => {
     if (viewMode === 'year') void setRange(`${year}-01-01`, `${year}-12-31`);
     else { const { from, to } = monthRange(ym); void setRange(from, to); }
   }, [viewMode, ym, year, setRange]);
 
-  useEffect(() => {
-    if (selectedMonth) void (async () => setMonthReports(await db.listReports(selectedMonth)))();
-  }, [selectedMonth]);
-
-  useEffect(() => {
-    void (async () => setYmReports(await db.listReports(ym)))();
-  }, [ym]);
+  useEffect(() => { void (async () => setTemplates(await db.listTemplates()))(); }, []);
 
   const dayRecords = useMemo(() => records.filter((r) => r.day === selectedDay), [records, selectedDay]);
 
@@ -70,16 +68,17 @@ export function CalendarPage() {
   function flash(m: string) { setNotice(m); setTimeout(() => setNotice(''), 1800); }
   async function onCopyMonth() {
     const t = formatZhuchiyu({ records, tasks, projects });
-    await copyText(t || '（本月无记录）'); flash('已复制本月猪齿鱼格式');
+    await copyText(t || '（无记录）'); flash('已复制');
   }
   async function onSubmit(input: RecordInput, existing?: WorkRecord) {
     if (existing) await update(existing.id, input); else await create(input);
   }
-  function onMonthClick(ymStr: string) { setSelectedMonth(ymStr); }
+
+  const selectedQuarter = selectedMonth ? Math.ceil(Number(selectedMonth.slice(5, 7)) / 3) : Math.ceil(Number(ym.slice(5, 7)) / 3);
 
   return (
     <div>
-      <div className="page-head" style={{ marginBottom: 10 }}>
+      <div className="page-head" style={{ marginBottom: 8 }}>
         <div className="left">
           <h2 className="section-title">{viewMode === 'year' ? `${year} 年历` : `${ym} 月历`}</h2>
         </div>
@@ -91,14 +90,14 @@ export function CalendarPage() {
           {viewMode === 'month' ? (
             <>
               <Button icon={<ArrowLeftRegular />} onClick={() => setYm((v) => shiftMonth(v, -1))} />
-              <Button size="small" onClick={() => { setYm(currentYM()); setSelectedDay(todayYMD()); }}>本月</Button>
+              <Button onClick={() => { setYm(currentYM()); setSelectedDay(todayYMD()); }}>本月</Button>
               <Button icon={<ArrowRightRegular />} onClick={() => setYm((v) => shiftMonth(v, 1))} />
-              <Button size="small" icon={<CopyRegular />} onClick={() => void onCopyMonth()}>复制</Button>
+              <Button icon={<CopyRegular />} onClick={() => void onCopyMonth()}>复制</Button>
             </>
           ) : (
             <>
               <Button icon={<ArrowLeftRegular />} onClick={() => setYear((y) => String(Number(y) - 1))} />
-              <Button size="small" onClick={() => setYear(currentYM().slice(0, 4))}>今年</Button>
+              <Button onClick={() => setYear(currentYM().slice(0, 4))}>今年</Button>
               <Button icon={<ArrowRightRegular />} onClick={() => setYear((y) => String(Number(y) + 1))} />
             </>
           )}
@@ -106,90 +105,78 @@ export function CalendarPage() {
       </div>
       {notice && <div className="notice">{notice}</div>}
 
-      {/* 年历 */}
-      {viewMode === 'year' && yearStats && (
-        <div className="layout-cal">
-          <div className="year-grid-wrap">
-            <div className="year-grid">
-              {yearStats.map((s) => (
-                <div key={s.month} className={`year-cell${selectedMonth === s.ym ? ' selected' : ''}`} onClick={() => onMonthClick(s.ym)}>
-                  <div className="year-cell-month">{s.month}月</div>
-                  <div className="year-cell-hours">{formatHours(s.totalMin) || '—'}</div>
-                  <div className="muted year-cell-meta">{s.count > 0 ? `${s.count} 条 · ${s.days} 天` : '无记录'}</div>
-                  <div className="year-cell-bar"><div className="year-cell-bar-fill" style={{ width: `${Math.min(100, (s.days / 22) * 100)}%` }} /></div>
-                </div>
-              ))}
+      {/* ===== 上层：网格 + 详情 ===== */}
+      <div className="cal-top-row">
+        {viewMode === 'month' ? (
+          <>
+            <div className="cal-grid-pane" style={{ padding: 4 }}>
+              <MonthCalendar ym={ym} records={records} projects={projects} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
             </div>
-          </div>
-          <div className="year-month-panel">
-            {selectedMonth ? (
-              <>
-                <h3 className="set-h">{selectedMonth} 月报</h3>
-                {monthReports.length > 0 ? (
-                  <div className="year-report-list">
-                    {monthReports.map((r) => (
-                      <div key={r.id} className="year-report-item">
-                        <div className="row spread" style={{ marginBottom: 6 }}>
-                          <span className="muted" style={{ fontSize: 11 }}>{new Date(r.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                          <button className="icon-btn" title="复制" onClick={() => void copyText(r.body)}><CopyRegular /></button>
-                        </div>
-                        <pre className="year-report-body">{r.body}</pre>
-                      </div>
-                    ))}
-                  </div>
-                ) : <div className="empty" style={{ padding: 24, textAlign: 'center' }}>该月无已保存月报</div>}
-              </>
-            ) : <div className="empty" style={{ padding: 48, textAlign: 'center' }}>← 点击左侧月份查看月报</div>}
-          </div>
-        </div>
-      )}
-
-      {/* 月历 */}
-      {viewMode === 'month' && (
-        <div className="layout-cal">
-          <div className="cal-pane card" style={{ padding: 8 }}>
-            <MonthCalendar ym={ym} records={records} projects={projects} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
-          </div>
-          <div className="day-pane">
-            <h3 className="day-pane-title">{formatYMDChinese(selectedDay)}</h3>
-            {dayRecords.length === 0 ? (
-              <div className="empty day-empty">当天无记录</div>
-            ) : (
-              <div className="tl">
-                {[...dayRecords].sort((a, b) => b.createdAt - a.createdAt).map((r) => (
-                  <TimelineEntry key={r.id} record={r} project={r.projectId ? projects.find((p) => p.id === r.projectId) : undefined}
-                    onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })} onDelete={(id) => void remove(id)} />
-                ))}
-              </div>
-            )}
-
-            {/* 本月报告 */}
-            {ymReports.length > 0 && (
-              <div className="cal-month-reports">
-                <div className="cal-mr-head">本月报告（{ymReports.length}）</div>
-                {ymReports.map((r) => (
-                  <div key={r.id} className="cal-mr-item">
-                    <div className="cal-mr-row" onClick={() => setExpandedReport(expandedReport === r.id ? null : r.id)}>
-                      <span className="muted" style={{ fontSize: 11 }}>{new Date(r.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className="muted cal-mr-preview">{r.body.slice(0, 40).replace(/\n/g, ' ')}…</span>
-                      <span className="cal-mr-toggle">{expandedReport === r.id ? '收起' : '展开'}</span>
-                    </div>
-                    {expandedReport === r.id && (
-                      <div className="cal-mr-expanded">
-                        <pre className="cal-mr-body">{r.body}</pre>
-                        <div className="row gap-sm" style={{ marginTop: 6 }}>
-                          <Button size="small" icon={<CopyRegular />} onClick={() => void copyText(r.body)}>复制</Button>
-                          <a href="#/report" className="cal-mr-edit">→ 去报告页编辑</a>
-                        </div>
-                      </div>
-                    )}
+            <div className="cal-detail-pane">
+              <h3 className="cal-detail-title">{formatYMDChinese(selectedDay)}</h3>
+              {dayRecords.length === 0 ? (
+                <div className="empty" style={{ padding: 16, fontSize: 13 }}>当天无记录</div>
+              ) : (
+                <div className="tl" style={{ maxHeight: 300, overflow: 'auto' }}>
+                  {[...dayRecords].sort((a, b) => b.createdAt - a.createdAt).map((r) => (
+                    <TimelineEntry key={r.id} record={r} project={r.projectId ? projects.find((p) => p.id === r.projectId) : undefined}
+                      onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })} onDelete={(id) => void remove(id)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="cal-grid-pane">
+              <div className="year-grid year-grid-compact">
+                {yearStats?.map((s) => (
+                  <div key={s.month} className={`year-cell year-cell-sm${selectedMonth === s.ym ? ' selected' : ''}`}
+                    onClick={() => setSelectedMonth(s.ym)}>
+                    <div className="year-cell-month">{s.month}月</div>
+                    <div className="year-cell-hours">{formatHours(s.totalMin) || '—'}</div>
+                    <div className="muted" style={{ fontSize: 10 }}>{s.count > 0 ? `${s.count}条` : ''}</div>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+            <div className="cal-detail-pane">
+              {selectedMonth ? (
+                <>
+                  <h3 className="cal-detail-title">{selectedMonth} 月报</h3>
+                  <ReportSection period={selectedMonth} title="月报" reportType="month" llmConfig={settings.llm} templates={templates}
+                    year={year} ym={selectedMonth} quarterMonths={quarterMonths}
+                    records={records.filter((r) => r.day.startsWith(selectedMonth))} projects={projects} />
+                </>
+              ) : (
+                <div className="empty" style={{ padding: 32, textAlign: 'center' }}>← 点击左侧月份</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ===== 下层：报告区（全宽） ===== */}
+      <div className="cal-bottom-row">
+        {viewMode === 'month' ? (
+          <div style={{ padding: '4px 0' }}>
+            <ReportSection period={ym} title="月报" reportType="month" llmConfig={settings.llm} templates={templates}
+              year={year} ym={ym} quarterMonths={quarterMonths} records={records} projects={projects} />
           </div>
-        </div>
-      )}
+        ) : (
+          <>
+            <div style={{ padding: '4px 0 12px' }}>
+              <ReportSection period={`${year}Q${selectedQuarter}`} title={`Q${selectedQuarter} 季报`} reportType="quarter"
+                llmConfig={settings.llm} templates={templates} year={year} ym={ym} quarterMonths={quarterMonths}
+                records={[]} projects={projects} />
+            </div>
+            <div style={{ padding: '4px 0' }}>
+              <ReportSection period={`${year}年报`} title="年报" reportType="year" llmConfig={settings.llm} templates={templates}
+                year={year} ym={ym} quarterMonths={quarterMonths} records={[]} projects={projects} />
+            </div>
+          </>
+        )}
+      </div>
 
       <RecordEditor open={editor.open} onClose={() => setEditor((e) => ({ ...e, open: false }))}
         day={selectedDay} half={editor.half} record={editor.record} projects={projects} tasks={tasks} onSubmit={onSubmit} />

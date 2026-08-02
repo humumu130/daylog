@@ -1,6 +1,32 @@
-use std::io::Write;
+/// 自动备份到 app data 目录
+#[tauri::command]
+pub fn auto_backup_cmd(data: String) -> Result<String, String> {
+    let app_data = dirs_next::data_dir()
+        .ok_or("找不到 app data 目录")?;
+    let backup_dir = app_data.join("com.today.worklog").join("backups");
+    std::fs::create_dir_all(&backup_dir)
+        .map_err(|e| format!("创建备份目录失败：{e}"))?;
 
-/// 读取 git 提交日志：返回 "hash|subject|author|date" 多行
+    let ts = chrono::Local::now().format("%Y-%m-%d_%H%M%S");
+    let file_name = format!("backup-{}.json", ts);
+    let file_path = backup_dir.join(&file_name);
+    std::fs::write(&file_path, &data)
+        .map_err(|e| format!("写入备份失败：{e}"))?;
+
+    // 清理旧备份，保留最近 5 份
+    let mut backups: Vec<_> = std::fs::read_dir(&backup_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with("backup-"))
+        .collect();
+    backups.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+    for old in backups.iter().skip(5) {
+        let _ = std::fs::remove_file(old.path());
+    }
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+/// 读取 git 提交日志
 #[tauri::command]
 pub fn git_log(repo: String, since: String, author: Option<String>, until: Option<String>) -> Result<String, String> {
     let mut cmd = std::process::Command::new("git");
@@ -15,11 +41,10 @@ pub fn git_log(repo: String, since: String, author: Option<String>, until: Optio
     }
     if let Some(a) = &author {
         if !a.is_empty() {
-            // -i: 作者匹配不区分大小写
             cmd.arg("-i").args(["--author", a]);
         }
     }
-    cmd.args(["--pretty=format:%h|%s|%an|%ad", "--date=short"]);
+    cmd.args(["--no-merges", "--pretty=format:%h|%s|%an|%ad", "--date=short"]);
     let out = cmd.output().map_err(|e| format!("执行 git 失败：{e}"))?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
@@ -27,34 +52,38 @@ pub fn git_log(repo: String, since: String, author: Option<String>, until: Optio
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// 调用本地 claude CLI 生成文本（非交互，prompt 走 stdin）
+/// 调用本地 claude CLI 生成文本（异步，不阻塞 UI）
 #[tauri::command]
-pub fn run_claude(prompt: String) -> Result<String, String> {
+pub async fn run_claude(prompt: String) -> Result<String, String> {
+    use tokio::io::AsyncWriteExt;
+
     let mut cmd = if cfg!(windows) {
-        let mut c = std::process::Command::new("cmd");
+        let mut c = tokio::process::Command::new("cmd");
         c.args(["/C", "claude", "-p", "--output-format", "json"]);
         c
     } else {
-        let mut c = std::process::Command::new("claude");
+        let mut c = tokio::process::Command::new("claude");
         c.args(["-p", "--output-format", "json"]);
         c
     };
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("无法启动 claude：{e}（确认已装并在 PATH）"))?;
+
     {
         let stdin = child.stdin.as_mut().ok_or("打开 stdin 失败")?;
-        stdin.write_all(prompt.as_bytes()).map_err(|e| e.to_string())?;
+        stdin.write_all(prompt.as_bytes()).await.map_err(|e| e.to_string())?;
     }
-    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+
+    let out = child.wait_with_output().await.map_err(|e| e.to_string())?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
     let raw = String::from_utf8_lossy(&out.stdout).to_string();
-    // 兼容 {result:"..."} / {text:"..."}
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
         if let Some(s) = v.get("result").and_then(|x| x.as_str()) {
             return Ok(s.to_string());

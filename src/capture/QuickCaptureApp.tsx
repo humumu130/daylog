@@ -9,7 +9,7 @@ import { useTasksStore } from '../stores/useTasksStore';
 import { todayYMD } from '../utils/date';
 import { formatHours, halfOf } from '../utils/halfDay';
 import { createRecord } from '../services/db';
-import { autoDuration } from '../services/duration';
+import { autoDuration, commitAutoDuration } from '../services/duration';
 import { notifyChanged } from '../services/events';
 import { hideQuickCapture } from '../services/window';
 import { parseEntries } from '../utils/parseEntry';
@@ -58,22 +58,30 @@ export function QuickCaptureApp() {
     const half = halfOf(new Date(), settings.boundaries);
     for (const e of entries) {
       const recordDay = e.day || todayYMD();
-      let durationMin = e.durationMin;
-      let meta: Record<string, unknown> | undefined;
-      if (durationMin === null) {
-        durationMin = await autoDuration(recordDay);
-        meta = { autoDuration: true };
+      if (e.durationMin !== null) {
+        await createRecord({
+          content: e.content,
+          durationMin: e.durationMin,
+          day: recordDay,
+          half,
+          taskId: e.taskId,
+          projectId: e.projectId,
+          source: 'manual',
+        });
+      } else {
+        const plan = await autoDuration(recordDay);
+        await createRecord({
+          content: e.content,
+          durationMin: plan.share,
+          day: recordDay,
+          half,
+          taskId: e.taskId,
+          projectId: e.projectId,
+          source: 'manual',
+          meta: { autoDuration: true },
+        });
+        await commitAutoDuration(plan);
       }
-      await createRecord({
-        content: e.content,
-        durationMin,
-        day: recordDay,
-        half,
-        taskId: e.taskId,
-        projectId: e.projectId,
-        source: 'manual',
-        meta,
-      });
     }
     await notifyChanged();
     setText('');

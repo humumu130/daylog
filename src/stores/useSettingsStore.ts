@@ -30,6 +30,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (partial.repos !== undefined) entries.push([SettingKeys.repos, partial.repos]);
     if (partial.gitImportMode !== undefined) entries.push([SettingKeys.gitImportMode, partial.gitImportMode]);
     if (partial.autostart !== undefined) entries.push([SettingKeys.autostart, partial.autostart]);
+    if (partial.remindTime !== undefined) entries.push([SettingKeys.remindTime, partial.remindTime]);
+    if (partial.remindMinMinutes !== undefined) entries.push([SettingKeys.remindMinMinutes, partial.remindMinMinutes]);
     await Promise.all(entries.map(([k, v]) => setSetting(k, v)));
   },
 }));

@@ -1,17 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, FluentProvider, Input } from '@fluentui/react-components';
 import { darkTheme, lightTheme } from '../styles/theme';
-import { AddRegular, DismissRegular, TaskListLtrRegular } from '@fluentui/react-icons';
+import { AddRegular, DeleteRegular, DismissRegular, TaskListLtrRegular } from '@fluentui/react-icons';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
+import { useRecordsStore } from '../stores/useRecordsStore';
 import { createRecord } from '../services/db';
 import { notifyChanged } from '../services/events';
 import { hideWidget } from '../services/window';
+import { autoDuration, commitAutoDuration } from '../services/duration';
 import { todayYMD } from '../utils/date';
-import { HALF_LABEL_CN, halfOf } from '../utils/halfDay';
+import { formatHM, halfOf } from '../utils/halfDay';
+import { parseEntry } from '../utils/parseEntry';
 import './widget.css';
+
+/** 把待办附带的可选耗时存进 note（JSON），完成时取出；无则按当天剩余自动分配 */
+function noteWithDuration(durationMin: number | null): string {
+  return durationMin != null ? JSON.stringify({ durationMin }) : '';
+}
+function readDuration(note: string): number | null {
+  if (!note) return null;
+  try {
+    const j = JSON.parse(note);
+    if (j && typeof j.durationMin === 'number') return j.durationMin;
+  } catch { /* ignore */ }
+  return null;
+}
 
 export function WidgetApp() {
   const settings = useSettingsStore((s) => s.settings);
@@ -20,18 +36,23 @@ export function WidgetApp() {
   const fetchTasks = useTasksStore((s) => s.fetch);
   const createTask = useTasksStore((s) => s.create);
   const setStatus = useTasksStore((s) => s.setStatus);
+  const removeTask = useTasksStore((s) => s.remove);
   const projects = useProjectsStore((s) => s.projects);
   const fetchProjects = useProjectsStore((s) => s.fetch);
+  const records = useRecordsStore((s) => s.records);
+  const setRange = useRecordsStore((s) => s.setRange);
 
   const [theme, setTheme] = useState(lightTheme);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [flash, setFlash] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void loadSettings().then((s) => setTheme(s.theme === 'dark' ? darkTheme : lightTheme));
     void fetchTasks();
     void fetchProjects();
+    void setRange(todayYMD(), todayYMD());
     const w = getCurrentWebviewWindow();
     const p = w.onFocusChanged(({ payload: f }) => {
       if (f) inputRef.current?.focus();
@@ -39,33 +60,78 @@ export function WidgetApp() {
     return () => {
       void p.then((fn) => fn());
     };
-  }, [loadSettings, fetchTasks, fetchProjects]);
+  }, [loadSettings, fetchTasks, fetchProjects, setRange]);
 
-  const active = tasks.filter((t) => t.status === 'active');
+  const active = useMemo(() => tasks.filter((t) => t.status === 'active'), [tasks]);
 
-  async function addTodo() {
-    const title = text.trim();
-    if (!title) return;
-    await createTask({ title, projectId: null, status: 'active', startDate: todayYMD(), endDate: null, note: '' });
-    await notifyChanged();
-    setText('');
-    inputRef.current?.focus();
+  // NL 解析输入（#项目 / 耗时），用于回显芯片 + 创建时带上
+  const parsed = useMemo(
+    () => parseEntry(text, { projects, tasks: active }),
+    [text, projects, active],
+  );
+  const projName = (id: string | null) => (id ? projects.find((p) => p.id === id)?.name : undefined);
+
+  // 今日小结
+  const todayMin = records
+    .filter((r) => r.day === todayYMD())
+    .reduce((s, r) => s + (r.durationMin ?? 0), 0);
+  const todayCount = records.filter((r) => r.day === todayYMD()).length;
+
+  function flashMsg(m: string) {
+    setFlash(m);
+    setTimeout(() => setFlash(''), 1400);
   }
 
-  async function complete(id: string, title: string, projectId: string | null) {
+  async function addTodo() {
+    const title = parsed.content.trim();
+    if (!title) return;
+    try {
+      await createTask({
+        title,
+        projectId: parsed.projectId,
+        status: 'active',
+        startDate: todayYMD(),
+        endDate: null,
+        note: noteWithDuration(parsed.durationMin),
+      });
+      await notifyChanged();
+      setText('');
+      inputRef.current?.focus();
+    } catch (e) {
+      flashMsg('添加失败：' + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  async function complete(id: string, title: string, projectId: string | null, note: string) {
     setBusy(id);
     try {
+      const explicit = readDuration(note);
+      let durationMin: number;
+      let plan;
+      if (explicit !== null) {
+        durationMin = explicit;
+      } else {
+        plan = await autoDuration(todayYMD());
+        durationMin = plan.share;
+      }
+      // 先建新记录 → 建成功后再压缩已有（保证原子性）
       await createRecord({
         content: title,
-        durationMin: null,
+        durationMin,
         day: todayYMD(),
         half: halfOf(new Date(), settings.boundaries),
         taskId: id,
         projectId,
         source: 'manual',
+        meta: plan ? { autoDuration: true } : undefined,
       });
+      if (plan) await commitAutoDuration(plan);
       await setStatus(id, 'done');
       await notifyChanged();
+      await setRange(todayYMD(), todayYMD());
+      flashMsg(plan ? `已记一笔 · 自动 ${formatHM(durationMin)}` : '已完成并记录');
+    } catch (e) {
+      flashMsg('记录失败：' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(null);
     }
@@ -90,7 +156,7 @@ export function WidgetApp() {
           ref={inputRef}
           value={text}
           onChange={(_, d) => setText(d.value)}
-          placeholder="加个待办，回车添加"
+          placeholder="加个待办，可带 #项目 / 耗时"
           contentBefore={<AddRegular />}
           className="grow"
           onKeyDown={(e) => {
@@ -100,30 +166,52 @@ export function WidgetApp() {
             }
           }}
         />
+        {(parsed.projectId || parsed.durationMin != null) && (
+          <div className="widget-chips">
+            {parsed.projectId && <span className="wchip">{projName(parsed.projectId)}</span>}
+            {parsed.durationMin != null && <span className="wchip">{formatHM(parsed.durationMin)}</span>}
+          </div>
+        )}
       </div>
 
       <div className="widget-list">
         {active.length === 0 && <div className="empty widget-empty">没有待办，加一个吧 ✍️</div>}
         {active.map((t) => {
           const proj = projOf(t.projectId);
+          const dur = readDuration(t.note);
           return (
             <div key={t.id} className={`widget-item${busy === t.id ? ' busy' : ''}`}>
-              <Checkbox disabled={busy === t.id} onChange={() => void complete(t.id, t.title, t.projectId)} />
+              <Checkbox disabled={busy === t.id} onChange={() => void complete(t.id, t.title, t.projectId, t.note)} />
               <div className="widget-item-body">
                 <span className="widget-item-title">{t.title}</span>
-                {proj && (
-                  <span className="widget-item-proj">
-                    <i className="wdot" style={{ background: proj.color }} /> {proj.name}
-                  </span>
-                )}
+                <div className="widget-item-meta">
+                  {proj && (
+                    <span className="widget-item-proj">
+                      <i className="wdot" style={{ background: proj.color }} /> {proj.name}
+                    </span>
+                  )}
+                  {dur != null && <span className="widget-item-dur">{formatHM(dur)}</span>}
+                </div>
               </div>
+              <button
+                className="widget-del"
+                title="删除"
+                disabled={busy === t.id}
+                onClick={() => void removeTask(t.id)}
+              >
+                <DeleteRegular />
+              </button>
             </div>
           );
         })}
       </div>
 
       <div className="widget-foot">
-        {HALF_LABEL_CN[halfOf(new Date(), settings.boundaries)]} · 勾选即自动记一笔
+        {flash ? (
+          <span className="widget-flash">✓ {flash}</span>
+        ) : (
+          <span>今日 {formatHM(todayMin)} · {todayCount} 条 · 勾选即记一笔</span>
+        )}
       </div>
     </FluentProvider>
   );

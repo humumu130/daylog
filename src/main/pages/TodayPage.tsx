@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftRegular, ArrowRightRegular, CopyRegular } from '@fluentui/react-icons';
 import { CaptureBar } from '../components/CaptureBar';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TimelineEntry } from '../components/TimelineEntry';
 import { ProgressRing } from '../components/ProgressRing';
 import { RecordEditor } from '../components/RecordEditor';
@@ -9,6 +10,7 @@ import type { RecordInput } from '../../services/db';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useTasksStore } from '../../stores/useTasksStore';
+import { useUiStore } from '../../stores/useUiStore';
 import { addDays, formatYMDChinese, parseYMD, todayYMD, weekdayCN } from '../../utils/date';
 import { formatHM } from '../../utils/halfDay';
 import { formatZhuchiyu } from '../../utils/zhuchiyu';
@@ -23,6 +25,7 @@ export function TodayPage() {
     open: false,
     half: 'morning',
   });
+  const [delId, setDelId] = useState<string | null>(null);
 
   const records = useRecordsStore((s) => s.records);
   const setRange = useRecordsStore((s) => s.setRange);
@@ -31,6 +34,8 @@ export function TodayPage() {
   const remove = useRecordsStore((s) => s.remove);
   const projects = useProjectsStore((s) => s.projects);
   const tasks = useTasksStore((s) => s.tasks);
+  const gotoDay = useUiStore((s) => s.gotoDay);
+  const consumeGotoDay = useUiStore((s) => s.consumeGotoDay);
 
   const today = todayYMD();
   const isToday = day === today;
@@ -38,6 +43,15 @@ export function TodayPage() {
   useEffect(() => {
     void setRange(addDays(today, -6), today);
   }, [setRange, today]);
+
+  // 来自全局搜索的跳转请求：确保目标日期落在已加载区间内
+  useEffect(() => {
+    if (gotoDay) {
+      setDay(gotoDay);
+      void setRange(addDays(gotoDay, -6), gotoDay);
+      consumeGotoDay();
+    }
+  }, [gotoDay, consumeGotoDay, setRange]);
 
   const dayRecords = useMemo(() => records.filter((r) => r.day === day), [records, day]);
   const totalMin = dayRecords.reduce((s, r) => s + (r.durationMin ?? 0), 0);
@@ -105,7 +119,7 @@ export function TodayPage() {
                 record={r}
                 project={r.projectId ? projects.find((p) => p.id === r.projectId) : undefined}
                 onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })}
-                onDelete={(id) => void remove(id)}
+                onDelete={(id) => setDelId(id)}
               />
             ))}
         </div>
@@ -120,6 +134,16 @@ export function TodayPage() {
         projects={projects}
         tasks={tasks}
         onSubmit={onSubmit}
+      />
+
+      <ConfirmDialog
+        open={delId !== null}
+        title="删除这条记录？"
+        message="删除后无法恢复。确定要删除该条工作记录吗？"
+        confirmText="删除"
+        destructive
+        onCancel={() => setDelId(null)}
+        onConfirm={() => { if (delId) void remove(delId); setDelId(null); }}
       />
     </div>
   );

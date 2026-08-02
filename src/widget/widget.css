@@ -29,6 +29,19 @@
   padding: 10px 12px;
   border-bottom: 1px solid var(--colorNeutralStroke2);
 }
+.widget-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+.wchip {
+  font-size: 11px;
+  background: var(--colorBrandBackground2);
+  color: var(--colorBrandForeground1);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
 .widget-list {
   flex: 1;
   overflow: auto;
@@ -70,6 +83,34 @@
   font-size: 11px;
   color: var(--colorNeutralForeground3);
 }
+.widget-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.widget-item-dur {
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+}
+.widget-del {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--colorNeutralForeground3);
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+  font-size: 13px;
+}
+.widget-item:hover .widget-del { opacity: 0.7; }
+.widget-del:hover { opacity: 1 !important; background: var(--colorStatusDangerBackground1); color: var(--colorStatusDangerForeground1); }
+.widget-del:disabled { cursor: default; }
 .wdot {
   display: inline-block;
   width: 7px;
@@ -81,4 +122,8 @@
   color: var(--colorNeutralForeground3);
   padding: 9px 14px;
   border-top: 1px solid var(--colorNeutralStroke2);
+}
+.widget-flash {
+  color: var(--colorBrandForeground1);
+  font-weight: 600;
 }

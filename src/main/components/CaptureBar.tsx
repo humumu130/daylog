@@ -9,7 +9,7 @@ import type { Half } from '../../types/models';
 import { formatYMDChinese } from '../../utils/date';
 import { formatHours, halfOf } from '../../utils/halfDay';
 import { notifyChanged } from '../../services/events';
-import { autoDuration } from '../../services/duration';
+import { autoDuration, commitAutoDuration } from '../../services/duration';
 import { parseEntries } from '../../utils/parseEntry';
 
 interface Props {
@@ -43,22 +43,31 @@ export function CaptureBar({ day, onDayChange }: Props) {
     const half: Half = halfOf(new Date(), boundaries);
     for (const e of entries) {
       const recordDay = e.day || day;
-      let durationMin = e.durationMin;
-      let meta: Record<string, unknown> | undefined;
-      if (durationMin === null) {
-        durationMin = await autoDuration(recordDay);
-        meta = { autoDuration: true };
+      if (e.durationMin !== null) {
+        await create({
+          content: e.content,
+          durationMin: e.durationMin,
+          day: recordDay,
+          half,
+          taskId: e.taskId,
+          projectId: e.projectId,
+          source: 'manual',
+        });
+      } else {
+        // 先规划 → 先建新记录 → 建成功后再压缩已有（保证原子性）
+        const plan = await autoDuration(recordDay);
+        await create({
+          content: e.content,
+          durationMin: plan.share,
+          day: recordDay,
+          half,
+          taskId: e.taskId,
+          projectId: e.projectId,
+          source: 'manual',
+          meta: { autoDuration: true },
+        });
+        await commitAutoDuration(plan);
       }
-      await create({
-        content: e.content,
-        durationMin,
-        day: recordDay,
-        half,
-        taskId: e.taskId,
-        projectId: e.projectId,
-        source: 'manual',
-        meta,
-      });
     }
     await notifyChanged();
     setText('');

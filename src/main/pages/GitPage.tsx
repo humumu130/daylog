@@ -21,6 +21,7 @@ interface SmartItem {
   hours: number;
   hashes: string[];
   imported: boolean;
+  isExisting?: boolean;
 }
 
 const RAW_DEFAULT_MIN = 30;
@@ -43,6 +44,7 @@ export function GitPage() {
   const [smartItems, setSmartItems] = useState<SmartItem[]>([]);
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartError, setSmartError] = useState('');
+  const [hasConsolidated, setHasConsolidated] = useState(false);
   const knownHashesRef = useMemo(() => ({ current: new Set<string>() }), []);
 
   const { since, until } = useMemo(() => {
@@ -70,13 +72,17 @@ export function GitPage() {
   async function runConsolidate(cs: GitCommit[], known: Set<string>) {
     setSmartLoading(true);
     setSmartError('');
+    setHasConsolidated(true);
     try {
-      const items = await consolidateCommits(cs, llmConfig);
+      const existing = await db.listRecordsByRange('2000-01-01', '2999-12-31');
+      const existingInput = existing.map((r) => ({ content: r.content, project: undefined }));
+      const items = await consolidateCommits(cs, llmConfig, existingInput);
       const mapped: SmartItem[] = items.map((it) => {
         const cs2 = cs.filter((c) => it.hashes.includes(c.hash));
         const day = cs2.map((c) => c.date).sort().pop() ?? todayYMD();
         const pids = new Set(cs2.map((c) => c.projectId).filter(Boolean) as string[]);
         const projectId = pids.size === 1 ? [...pids][0] : (cs2[0]?.projectId ?? null);
+        const isExisting = it.status === 'existing';
         return {
           title: it.title,
           count: cs2.length,
@@ -85,10 +91,11 @@ export function GitPage() {
           hours: it.hours ?? 1,
           hashes: it.hashes,
           imported: it.hashes.every((h) => known.has(h)),
+          isExisting,
         };
       });
       setSmartItems(mapped);
-      setChecked(new Set(mapped.filter((i) => !i.imported).map((_, i) => `s${i}`)));
+      setChecked(new Set(mapped.filter((i) => !i.imported && !i.isExisting).map((_, i) => `s${i}`)));
     } catch (e) {
       setSmartError(e instanceof Error ? e.message : String(e));
       setSmartItems([]);
@@ -101,7 +108,6 @@ export function GitPage() {
     setLoading(true);
     setErrors([]);
     setDone('');
-    setSmartItems([]);
     setSmartError('');
     try {
       const known = await loadKnownHashes();
@@ -110,7 +116,8 @@ export function GitPage() {
       setCommits(annotated);
       setErrors(res.errors);
       setChecked(new Set(annotated.filter((c) => !c.imported).map((c) => `r${c.hash}${c.repoId}`)));
-      if (gitMode === 'smart' && res.commits.length > 0) {
+      // 智能模式：仅首次自动整合，之后保留结果等用户手动触发
+      if (gitMode === 'smart' && res.commits.length > 0 && !hasConsolidated) {
         await runConsolidate(res.commits, known);
       }
     } catch (e) {
@@ -204,7 +211,7 @@ export function GitPage() {
         </div>
         <div className="row gap-sm wrap">
           <div className="seg">
-            <button className={`seg-btn${!showSmart ? ' active' : ''}`} onClick={() => toggleMode('raw')}>原样</button>
+            <button className={`seg-btn${!showSmart ? ' active' : ''}`} onClick={() => toggleMode('raw')}>原始提交</button>
             <button className={`seg-btn${showSmart ? ' active' : ''}`} onClick={() => toggleMode('smart')}>智能整合</button>
           </div>
         </div>
@@ -234,15 +241,27 @@ export function GitPage() {
         </div>
       )}
 
-      {loading && <Spinner label="扫描中…" />}
+      {loading && !showSmart && <Spinner label="扫描中…" />}
       {showSmart && smartLoading && <Spinner label="智能整合中…" />}
-      {showSmart && smartError && <div className="warn-soft">⚠ 整合失败：{smartError}。可切回「原样」模式。</div>}
+      {showSmart && smartError && <div className="warn-soft">⚠ 整合失败：{smartError}。可切回「原始提交」模式或点「重新整合」重试。</div>}
 
       {!loading && !showSmart && commits.length === 0 && errors.length === 0 && (
         <div className="empty" style={{ padding: 40 }}>该时段没有提交。</div>
       )}
 
-      {/* 原样模式 */}
+      {/* 智能模式：还没整合时的提示 */}
+      {!loading && showSmart && !smartLoading && smartItems.length === 0 && !smartError && commits.length > 0 && (
+        <div className="empty" style={{ padding: 40 }}>
+          扫描到 {commits.length} 条提交。点下方按钮开始智能整合。
+          <div style={{ marginTop: 12 }}>
+            <Button appearance="primary" onClick={() => void runConsolidate(commits, knownHashesRef.current)}>
+              开始智能整合
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 原始提交模式 */}
       {!loading && !showSmart && commits.length > 0 && (
         <>
           <div className="git-groups">
@@ -288,22 +307,29 @@ export function GitPage() {
       {!loading && showSmart && !smartLoading && smartItems.length > 0 && (
         <>
           <div className="git-groups">
-            <div className="card git-group">
+            <div className="git-group">
               <div className="git-group-head">
                 <span className="git-repo-name">整合结果</span>
-                <span className="muted">{smartItems.length} 项工作 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}</span>
+                <span className="muted">
+                  {smartItems.filter((i) => !i.isExisting && !i.imported).length} 新增 · {smartItems.filter((i) => i.isExisting).length} 已有 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}
+                </span>
+                <Button size="small" appearance="subtle" onClick={() => void runConsolidate(commits, knownHashesRef.current)} style={{ marginLeft: 'auto' }}>
+                  重新整合
+                </Button>
               </div>
               {smartItems.map((item, i) => {
                 const key = `s${i}`;
                 const proj = item.projectId ? projects.find((p) => p.id === item.projectId) : undefined;
+                const dimmed = item.imported || item.isExisting;
                 return (
-                  <div key={key} className={`git-row${item.imported ? ' imported' : ''}`}>
+                  <div key={key} className={`git-row${dimmed ? ' imported' : ''}`}>
                     <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} />
                     <span className="git-subject">{item.title}</span>
                     {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
                     <span className="git-smart-meta muted">{item.count} 提交 · {item.day}</span>
                     <span className="git-hours">{formatHours(Math.round(item.hours * 60))}</span>
                     {item.imported && <span className="git-imported-badge">已导入</span>}
+                    {item.isExisting && !item.imported && <span className="git-existing-badge">已有记录</span>}
                   </div>
                 );
               })}

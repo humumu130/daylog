@@ -17,6 +17,8 @@ export const SettingKeys = {
   repos: 'repos',
   gitImportMode: 'gitImportMode',
   autostart: 'autostart',
+  remindTime: 'remindTime',
+  remindMinMinutes: 'remindMinMinutes',
 } as const;
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
@@ -42,10 +44,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   repos: [],
   gitImportMode: 'raw',
   autostart: true,
+  remindTime: '18:00',
+  remindMinMinutes: 8 * 60,
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, theme, boundaries, llm, repos, gitImportMode, autostart] = await Promise.all([
+  const [hotkey, todoHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<Theme>(SettingKeys.theme, DEFAULT_SETTINGS.theme),
@@ -54,6 +58,8 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<GitRepo[]>(SettingKeys.repos, DEFAULT_SETTINGS.repos),
     getSetting<'raw' | 'smart'>(SettingKeys.gitImportMode, DEFAULT_SETTINGS.gitImportMode),
     getSetting<boolean>(SettingKeys.autostart, DEFAULT_SETTINGS.autostart),
+    getSetting<string>(SettingKeys.remindTime, DEFAULT_SETTINGS.remindTime),
+    getSetting<number>(SettingKeys.remindMinMinutes, DEFAULT_SETTINGS.remindMinMinutes),
   ]);
-  return { hotkey, todoHotkey, theme, boundaries, llm, repos, gitImportMode, autostart };
+  return { hotkey, todoHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes };
 }

@@ -20,7 +20,13 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![commands::git_log, commands::run_claude])
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::git_log,
+            commands::run_claude,
+            commands::auto_backup_cmd,
+        ])
         .setup(|app| {
             // 开机自启插件（仅桌面端），启用/禁用由前端控制
             #[cfg(desktop)]

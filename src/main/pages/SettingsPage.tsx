@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Switch } from '@fluentui/react-components';
 import { AddRegular, ChevronDownRegular, ChevronRightRegular, DeleteRegular, EditRegular } from '@fluentui/react-icons';
 import { useProjectsStore } from '../../stores/useProjectsStore';
@@ -6,7 +6,11 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { setAutostart } from '../../services/autostart';
 import { HotkeyField } from '../components/HotkeyField';
 import { Select } from '../components/Select';
-import type { GitRepo, LlmConfig } from '../../types/models';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import type { GitRepo, LlmConfig, ReportTemplate } from '../../types/models';
+import * as db from '../../services/db';
+import { generateReport } from '../../services/llm';
+import { exportToFile, importFromFile } from '../../services/backup';
 
 export function SettingsPage() {
   const settings = useSettingsStore((s) => s.settings);
@@ -17,6 +21,7 @@ export function SettingsPage() {
   const removeProject = useProjectsStore((s) => s.remove);
 
   const [notice, setNotice] = useState('');
+  const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [pname, setPname] = useState('');
   const [pcolor, setPcolor] = useState('#0078d4');
   const [pkw, setPkw] = useState('');
@@ -125,11 +130,34 @@ export function SettingsPage() {
         <div className="set-row"><div className="set-label"><span>开机自启</span></div>
           <Switch checked={settings.autostart} onChange={(_, d) => void toggleAutostart(d.checked)} />
         </div>
+        <div className="set-row">
+          <div className="set-label"><span>下班提醒</span><span className="subtle">到点若今日记录不足，桌面通知提醒补记；留空关闭</span></div>
+          <div className="row gap-sm">
+            <input
+              type="time"
+              className="sel"
+              value={settings.remindTime}
+              onChange={(e) => void patch({ remindTime: e.target.value })}
+              style={{ width: 92 }}
+            />
+            <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>不足</span>
+            <input
+              type="number"
+              className="sel"
+              min={1}
+              max={16}
+              value={Math.round(settings.remindMinMinutes / 60)}
+              onChange={(e) => void patch({ remindMinMinutes: Math.max(1, Number(e.target.value) || 8) * 60 })}
+              style={{ width: 56 }}
+            />
+            <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时提醒</span>
+          </div>
+        </div>
       </section>
 
-      {/* 月报 LLM */}
+      {/* LLM */}
       <section className="card set-section">
-        <h3 className="set-h">月报 LLM</h3>
+        <h3 className="set-h">LLM</h3>
         <div className="set-row"><div className="set-label"><span>模型来源</span></div>
           <div className="seg">
             <button className={`seg-btn${settings.llm.kind === 'openai-compat' ? ' active' : ''}`} onClick={() => setLlm({ kind: 'openai-compat' })}>云端 API</button>
@@ -152,7 +180,30 @@ export function SettingsPage() {
         {settings.llm.kind === 'claude-code' && (
           <div className="set-row"><span className="muted">使用本机已装的 claude CLI 生成，需 claude 在 PATH。</span></div>
         )}
+        <div className="set-row">
+          <div className="set-label"><span>连接测试</span></div>
+          <LlmTestButton config={settings.llm} />
+        </div>
       </section>
+
+      {/* 数据备份 */}
+      <section className="card set-section">
+        <h3 className="set-h">数据备份</h3>
+        <div className="set-row">
+          <div className="set-label"><span>导出 / 导入</span><span className="subtle">导出全部数据为 JSON 文件；导入会覆盖现有数据</span></div>
+          <div className="row gap-sm">
+            <Button size="small" onClick={async () => { const ok = await exportToFile(); flash(ok ? '已导出' : '已取消'); }}>导出</Button>
+            <Button size="small" onClick={async () => { const r = await importFromFile(); if (r.imported > 0) { flash(`已导入 ${r.imported} 条，刷新中…`); setTimeout(() => location.reload(), 1000); } }}>导入</Button>
+          </div>
+        </div>
+        <div className="set-row">
+          <div className="set-label"><span>自动备份</span><span className="subtle">每次启动自动备份到 %AppData%/com.today.worklog/backups/，保留最近 5 份</span></div>
+          <span className="muted" style={{ fontSize: 12 }}>✓ 已启用</span>
+        </div>
+      </section>
+
+      {/* 报告模板 */}
+      <ReportTemplateSection />
 
       {/* 项目与仓库（整合） */}
       <section className="card set-section">
@@ -209,7 +260,11 @@ export function SettingsPage() {
                       <span className="proj-repo-actions" onClick={(e) => e.stopPropagation()}>
                         <button className="icon-btn" title="编辑" onClick={() => startEditProject(p.id, p.name, p.color, p.keywords)}><EditRegular /></button>
                         <Switch checked={p.isActive} onChange={(_, d) => void updateProject(p.id, { name: p.name, color: p.color, keywords: p.keywords, isActive: d.checked, sortOrder: p.sortOrder })} />
-                        <button className="icon-btn" title="删除" onClick={() => void removeProject(p.id)}><DeleteRegular /></button>
+                        <button className="icon-btn" title="删除" onClick={() => setConfirm({
+                          title: `删除项目「${p.name}」？`,
+                          message: '项目下的历史记录不会被删除，但会失去项目归类。确定删除？',
+                          onConfirm: () => { void removeProject(p.id); flash('已删除项目'); },
+                        })}><DeleteRegular /></button>
                       </span>
                     </div>
 
@@ -236,7 +291,11 @@ export function SettingsPage() {
                                   <span className="repo-path">{r.path}</span>
                                   {r.author && <span className="muted">@{r.author}</span>}
                                   <button className="icon-btn" title="编辑" onClick={() => startEditRepo(r)}><EditRegular /></button>
-                                  <button className="icon-btn" title="移除" onClick={() => void removeRepo(r.id)}><DeleteRegular /></button>
+                                  <button className="icon-btn" title="移除" onClick={() => setConfirm({
+                            title: '移除该仓库？',
+                            message: `将从配置中移除：${r.path}`,
+                            onConfirm: () => { void removeRepo(r.id); flash('已移除仓库'); },
+                          })}><DeleteRegular /></button>
                                 </div>
                               )}
                             </div>
@@ -276,7 +335,11 @@ export function SettingsPage() {
                           <span className="repo-path">{r.path}</span>
                           {r.author && <span className="muted">@{r.author}</span>}
                           <button className="icon-btn" title="编辑" onClick={() => startEditRepo(r)}><EditRegular /></button>
-                          <button className="icon-btn" title="移除" onClick={() => void removeRepo(r.id)}><DeleteRegular /></button>
+                          <button className="icon-btn" title="移除" onClick={() => setConfirm({
+                            title: '移除该仓库？',
+                            message: `将从配置中移除：${r.path}`,
+                            onConfirm: () => { void removeRepo(r.id); flash('已移除仓库'); },
+                          })}><DeleteRegular /></button>
                         </div>
                       )}
                     </div>
@@ -287,6 +350,110 @@ export function SettingsPage() {
           )}
         </div>
       </section>
+
+      <ConfirmDialog
+        open={confirm !== null}
+        title={confirm?.title ?? ''}
+        message={confirm?.message ?? ''}
+        confirmText="删除"
+        destructive
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => { confirm?.onConfirm(); setConfirm(null); }}
+      />
+    </div>
+  );
+}
+
+function ReportTemplateSection() {
+  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [tplOpen, setTplOpen] = useState(false);
+  const [tplName, setTplName] = useState('');
+  const [tplBody, setTplBody] = useState('');
+  const [editingId, setEditingId] = useState<string | undefined>();
+  const [delId, setDelId] = useState<string | null>(null);
+
+  useEffect(() => { void (async () => setTemplates(await db.listTemplates()))(); }, []);
+
+  async function save() {
+    if (!tplName.trim()) return;
+    await db.saveTemplate({ id: editingId, name: tplName.trim(), body: tplBody, isDefault: templates.length === 0 && !editingId });
+    setTemplates(await db.listTemplates());
+    setTplOpen(false); setTplName(''); setTplBody(''); setEditingId(undefined);
+  }
+  async function del(id: string) {
+    await db.deleteTemplate(id);
+    setTemplates(await db.listTemplates());
+  }
+
+  return (
+    <section className="card set-section">
+      <h3 className="set-h">报告模板</h3>
+      <p className="set-tip">提供一份满意的报告范例，AI 会模仿其格式和语气。月报/季报/年报共用。</p>
+      <div className="tpl-list">
+        {templates.length === 0 && <div className="empty">还没有模板</div>}
+        {templates.map((t) => (
+          <div key={t.id} className="proj-row">
+            <span className="proj-name">{t.name}</span>
+            {t.isDefault && <span className="chip" style={{ fontSize: 10 }}>默认</span>}
+            <span className="muted proj-kw">{t.body.slice(0, 60).replace(/\n/g, ' ')}…</span>
+            <button className="icon-btn" title="编辑" onClick={() => { setEditingId(t.id); setTplName(t.name); setTplBody(t.body); setTplOpen(true); }}><EditRegular /></button>
+            <button className="icon-btn" title="删除" onClick={() => setDelId(t.id)}><DeleteRegular /></button>
+          </div>
+        ))}
+      </div>
+      <Button size="small" icon={<AddRegular />} onClick={() => { setEditingId(undefined); setTplName(''); setTplBody(''); setTplOpen(true); }} style={{ marginTop: 8 }}>新建模板</Button>
+
+      {tplOpen && (
+        <div className="modal-mask" onClick={() => setTplOpen(false)}>
+          <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="set-h">{editingId ? '编辑模板' : '新建模板'}</h3>
+            <input className="tpl-name-input" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="模板名（如：给领导的月报）" />
+            <textarea className="sel" style={{ minHeight: 200, resize: 'vertical' }} value={tplBody} onChange={(e) => setTplBody(e.target.value)}
+              placeholder="粘贴一份你满意的报告作为范例，AI 会模仿其格式和语气" />
+            <div className="row gap-sm" style={{ justifyContent: 'flex-end' }}>
+              <Button size="small" onClick={() => setTplOpen(false)}>取消</Button>
+              <Button size="small" appearance="primary" onClick={() => void save()}>保存</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={delId !== null}
+        title="删除该模板？"
+        message="删除后无法恢复。确定要删除这个报告模板吗？"
+        confirmText="删除"
+        destructive
+        onCancel={() => setDelId(null)}
+        onConfirm={() => { if (delId) void del(delId); setDelId(null); }}
+      />
+    </section>
+  );
+}
+
+function LlmTestButton({ config }: { config: LlmConfig }) {
+  const [status, setStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+  const [msg, setMsg] = useState('');
+
+  async function test() {
+    setStatus('testing'); setMsg('');
+    try {
+      const reply = await generateReport(config, '你是测试助手', '请回复"连接成功"四个字。');
+      setStatus('ok');
+      setMsg(reply.slice(0, 30));
+    } catch (e) {
+      setStatus('fail');
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <div className="row gap-sm">
+      <Button size="small" onClick={() => void test()} disabled={status === 'testing'}>
+        {status === 'testing' ? '测试中…' : '测试连接'}
+      </Button>
+      {status === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>✓ {msg}</span>}
+      {status === 'fail' && <span className="muted" style={{ color: '#e81123', fontSize: 12 }}>✗ {msg.slice(0, 80)}</span>}
     </div>
   );
 }

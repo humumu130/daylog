@@ -5,10 +5,12 @@ import {
   BranchRegular,
   CalendarMonthRegular,
   CalendarTodayRegular,
+  SearchRegular,
   SettingsRegular,
 } from '@fluentui/react-icons';
 import { toggleWidget } from '../services/window';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useUiStore } from '../stores/useUiStore';
 
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -22,6 +24,7 @@ const NAV: { to: string; label: string; icon: IconType }[] = [
 export function Sidebar() {
   const theme = useSettingsStore((s) => s.settings.theme);
   const patch = useSettingsStore((s) => s.patch);
+  const openSearch = useUiStore((s) => s.openSearch);
   const isDark = theme === 'dark';
 
   return (
@@ -30,6 +33,9 @@ export function Sidebar() {
         今日
       </div>
       <nav className="rail-nav">
+        <button className="rail-item" title="搜索 (Ctrl+K)" onClick={openSearch}>
+          <SearchRegular className="rail-icon" />
+        </button>
         {NAV.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}

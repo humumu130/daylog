@@ -112,7 +112,7 @@
 .seg {
   display: inline-flex;
   background: var(--border-soft);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 3px;
   gap: 2px;
 }
@@ -122,9 +122,11 @@
   color: var(--text-2);
   font-size: 13px;
   padding: 6px 16px;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
+  text-decoration: none;
+  display: inline-block;
   transition: background 0.12s, color 0.12s;
 }
 .seg-btn:hover {
@@ -514,7 +516,75 @@ textarea.sel {
 /* ReviewPage tab */
 .review-tabs { margin-bottom: 10px; }
 
-/* 日历内嵌月报 */
+/* 日历上下布局 */
+.cal-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.cal-bottom-row { }
+.cal-grid-pane { min-width: 0; }
+.cal-detail-pane {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow: auto;
+  min-width: 0;
+}
+.cal-detail-title {
+  font-size: 13px; font-weight: 600; color: var(--text-3);
+  margin: 0 0 6px; padding: 0;
+  border: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 年历紧凑 */
+.year-grid-compact { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.year-cell-sm { padding: 10px 8px; min-height: auto; }
+.year-cell-sm .year-cell-hours { font-size: 18px; margin: 2px 0; }
+
+/* 报告区组件 */
+.rpt-section { }
+.rpt-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.rpt-title {
+  font-size: 13px; font-weight: 600; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.rpt-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.rpt-textarea {
+  width: 100%; min-height: 200px;
+  font-family: inherit; font-size: 14px; line-height: 1.8; color: var(--text);
+  background: var(--border-soft); border: 1px solid transparent; border-radius: 8px;
+  padding: 14px; resize: vertical; outline: none; box-sizing: border-box;
+  transition: border-color 0.12s, background 0.12s;
+}
+.rpt-textarea:focus { border-color: var(--accent); background: var(--surface); }
+.rpt-empty {
+  font-size: 13px; color: var(--text-3); padding: 20px;
+  text-align: center;
+}
+.rpt-list { display: flex; flex-direction: column; gap: 2px; }
+.rpt-item { border: none; border-radius: 6px; overflow: hidden; }
+.rpt-item-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 6px;
+  cursor: pointer; transition: background 0.1s; border-radius: 6px;
+}
+.rpt-item-head:hover { background: var(--border-soft); }
+.rpt-item-preview {
+  flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rpt-toggle { font-size: 12px; color: var(--accent); white-space: nowrap; }
+.rpt-full {
+  margin: 4px 0 0; padding: 12px; background: var(--border-soft); border: none; border-radius: 8px;
+  font-family: inherit; font-size: 13px; line-height: 1.8; color: var(--text);
+  white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow: auto;
+}
 .cal-month-reports { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
 .cal-mr-head { font-size: 12px; font-weight: 600; color: var(--text-3); margin-bottom: 6px; }
 .cal-mr-item { border-bottom: 1px solid var(--border); }
@@ -604,3 +674,4 @@ textarea.sel {
 .git-imported-badge { font-size: 10px; background: var(--border-soft); color: var(--text-3); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
 .git-smart-meta { font-size: 11px; white-space: nowrap; }
 .git-hours { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.git-existing-badge { font-size: 10px; background: var(--border); color: var(--text-3); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }

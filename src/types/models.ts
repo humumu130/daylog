@@ -93,4 +93,8 @@ export interface AppSettings {
   repos: GitRepo[];
   gitImportMode: 'raw' | 'smart';
   autostart: boolean;
+  /** 下班提醒：到点若今日记录不足则桌面通知。空字符串=关闭 */
+  remindTime: string;
+  /** 提醒阈值（分钟）：今日总工时低于此值则提醒 */
+  remindMinMinutes: number;
 }

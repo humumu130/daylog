@@ -5,7 +5,7 @@ import { darkTheme, lightTheme } from '../styles/theme';
 import { Sidebar } from './Sidebar';
 import { WindowControls } from './components/WindowControls';
 import { TodayPage } from './pages/TodayPage';
-import { ReviewPage } from './pages/ReviewPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { GitPage } from './pages/GitPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useProjectsStore } from '../stores/useProjectsStore';
@@ -16,6 +16,10 @@ import { onChanged } from '../services/events';
 import { registerHotkey, unregisterHotkey } from '../services/hotkey';
 import { showQuickCapture, toggleWidget } from '../services/window';
 import { useRecordsStore } from '../stores/useRecordsStore';
+import { autoBackup } from '../services/backup';
+import { useUiStore } from '../stores/useUiStore';
+import { startReminder } from '../services/reminder';
+import { SearchOverlay } from './components/SearchOverlay';
 import './app.css';
 import './pages.css';
 import './components/components.css';
@@ -37,6 +41,10 @@ export function MainApp() {
       await setAutostart(s.autostart).catch(() => undefined);
       await Promise.all([fetchProjects(), fetchTasks()]);
       setReady(true);
+      // 启动时自动备份（不阻塞主流程）
+      void autoBackup().catch(() => undefined);
+      // 下班提醒：每分钟检查（用 getter 实时读取最新设置）
+      startReminder(() => useSettingsStore.getState().settings);
     })();
   }, [load, fetchProjects, fetchTasks]);
 
@@ -70,6 +78,18 @@ export function MainApp() {
     };
   }, [ready, fetchTasks, fetchRecords]);
 
+  // 全局搜索快捷键 Ctrl/Cmd+K
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        useUiStore.getState().openSearch();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <FluentProvider theme={theme} className="app-shell app-layout">
       <HashRouter>
@@ -83,9 +103,8 @@ export function MainApp() {
             <Routes>
               <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/today" element={<TodayPage />} />
-              <Route path="/calendar" element={<ReviewPage />} />
+              <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/git" element={<GitPage />} />
-              <Route path="/report" element={<ReviewPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           ) : (
@@ -95,6 +114,7 @@ export function MainApp() {
           )}
           </main>
         </div>
+        <SearchOverlay />
       </HashRouter>
     </FluentProvider>
   );
