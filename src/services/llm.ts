@@ -4,12 +4,12 @@ import type { LlmConfig, Project, WorkRecord } from '../types/models';
 import { formatHours } from '../utils/halfDay';
 import { groupBy } from '../utils/groupBy';
 
-/** 把当月记录聚合成文本摘要（供 LLM 写月报） */
-export function buildMonthSummary(records: WorkRecord[], projects: Project[], ym: string): string {
+/** 把给定记录聚合成文本摘要（供 LLM 写月报）。label 用于标题，通常是日期区间。 */
+export function buildMonthSummary(records: WorkRecord[], projects: Project[], label: string): string {
   const totalMin = records.reduce((s, r) => s + (r.durationMin ?? 0), 0);
   const byProject = groupBy(records, (r) => r.projectId ?? '_none');
   const lines: string[] = [
-    `【${ym} 工作记录汇总】`,
+    `【${label} 工作记录汇总】`,
     `共 ${records.length} 条记录，合计 ${formatHours(totalMin)}`,
     '',
   ];
