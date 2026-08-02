@@ -1,0 +1,50 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for main + quick-capture windows",
+  "windows": ["main", "quick-capture", "widget"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-center",
+    "core:webview:default",
+    "core:event:default",
+
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered",
+    "global-shortcut:allow-unregister-all",
+
+    "sql:default",
+    "sql:allow-execute",
+
+    "store:default",
+
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+
+    "notification:default",
+
+    "autostart:default",
+
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://open.bigmodel.cn/*" },
+        { "url": "https://api.deepseek.com/*" },
+        { "url": "https://api.openai.com/*" },
+        { "url": "https://api.anthropic.com/*" }
+      ]
+    }
+  ]
+}

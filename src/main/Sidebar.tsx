@@ -1,0 +1,60 @@
+import type { ComponentType, SVGProps } from 'react';
+import { NavLink } from 'react-router-dom';
+import {
+  AppsRegular,
+  BranchRegular,
+  CalendarMonthRegular,
+  CalendarTodayRegular,
+  DocumentTextRegular,
+  SettingsRegular,
+} from '@fluentui/react-icons';
+import { toggleWidget } from '../services/window';
+import { useSettingsStore } from '../stores/useSettingsStore';
+
+type IconType = ComponentType<SVGProps<SVGSVGElement>>;
+
+const NAV: { to: string; label: string; icon: IconType }[] = [
+  { to: '/today', label: '今日', icon: CalendarTodayRegular },
+  { to: '/calendar', label: '日历', icon: CalendarMonthRegular },
+  { to: '/git', label: 'Git', icon: BranchRegular },
+  { to: '/report', label: '月报', icon: DocumentTextRegular },
+  { to: '/settings', label: '设置', icon: SettingsRegular },
+];
+
+export function Sidebar() {
+  const theme = useSettingsStore((s) => s.settings.theme);
+  const patch = useSettingsStore((s) => s.patch);
+  const isDark = theme === 'dark';
+
+  return (
+    <aside className="rail">
+      <div className="rail-brand" title="今日" data-tauri-drag-region>
+        今日
+      </div>
+      <nav className="rail-nav">
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) => `rail-item${isActive ? ' active' : ''}`}
+            title={label}
+          >
+            <Icon className="rail-icon" />
+          </NavLink>
+        ))}
+      </nav>
+      <div className="rail-foot">
+        <button className="rail-item" title="待办插件 (Alt+Shift+J)" onClick={() => void toggleWidget()}>
+          <AppsRegular className="rail-icon" />
+        </button>
+        <button
+          className="rail-item"
+          title={isDark ? '切换浅色' : '切换深色'}
+          onClick={() => void patch({ theme: isDark ? 'light' : 'dark' })}
+        >
+          <span className="rail-emoji">Aa</span>
+        </button>
+      </div>
+    </aside>
+  );
+}

@@ -1,0 +1,588 @@
+/* ===== 通用提示条 ===== */
+.notice {
+  background: var(--colorBrandBackground2);
+  color: var(--colorBrandForeground1);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  display: inline-block;
+}
+
+/* ===== 日历页两栏 ===== */
+.layout-cal {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.cal-pane {
+  padding: 12px;
+}
+.day-pane {
+  min-width: 0;
+}
+
+/* ===== 任务页 ===== */
+.task-section {
+  margin-bottom: 22px;
+}
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.task-card {
+  padding: 12px 14px;
+}
+.task-title {
+  font-weight: 600;
+}
+.task-range {
+  font-size: 12px;
+}
+.task-note {
+  font-size: 12px;
+}
+.task-add-btn {
+  align-self: flex-end;
+}
+
+/* ===== 月报占位 ===== */
+.phase-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ph-icon {
+  font-size: 32px;
+  color: var(--colorBrandForeground1);
+}
+.ph-list li {
+  margin: 4px 0;
+}
+.ph-status {
+  padding-top: 12px;
+  border-top: 1px dashed var(--colorNeutralStroke2);
+}
+
+/* ===== 设置页 ===== */
+.set-section {
+  margin-bottom: 18px;
+  padding: 20px 22px;
+}
+.set-h {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 16px;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+  line-height: 1.2;
+}
+.set-tip {
+  font-size: 12px;
+  color: var(--text-3);
+  margin: 0 0 14px;
+  line-height: 1.6;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+  gap: 18px;
+}
+.set-row:first-of-type {
+  border-top: none;
+}
+.set-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-label > span:first-child {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+/* 分段按钮 */
+.seg {
+  display: inline-flex;
+  background: var(--border-soft);
+  border-radius: 7px;
+  padding: 3px;
+  gap: 2px;
+}
+.seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+.seg-btn:hover {
+  color: var(--text);
+}
+.seg-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow-soft);
+}
+/* 原生 select/textarea 统一样式 */
+.sel {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.sel:focus {
+  border-color: var(--accent);
+}
+textarea.sel {
+  resize: vertical;
+  line-height: 1.6;
+}
+.hotkey-display {
+  width: 150px;
+}
+.num-input {
+  width: 90px;
+}
+.proj-add {
+  margin-bottom: 12px;
+}
+.color-input {
+  width: 40px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.proj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.proj-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 6px;
+}
+.proj-row:hover {
+  background: var(--colorNeutralBackground1Hover);
+}
+.proj-name {
+  font-weight: 500;
+}
+.proj-kw {
+  font-size: 12px;
+  flex: 1;
+}
+.repo-edit, .proj-edit {
+  padding: 8px 6px;
+  border-radius: 6px;
+  background: var(--border-soft);
+  margin: 2px 0;
+}
+
+/* 项目与仓库整合列表 */
+.proj-repo-list { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.proj-repo-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.12s;
+}
+.proj-repo-item:hover { border-color: #cbd5e1; }
+.proj-repo-head {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  cursor: pointer; transition: background 0.1s; user-select: none;
+}
+.proj-repo-head:hover { background: var(--border-soft); }
+.proj-repo-head.open { border-bottom: 1px solid var(--border); }
+.proj-repo-chevron { font-size: 14px; color: var(--text-3); flex-shrink: 0; width: 16px; }
+.proj-repo-actions {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
+.repo-count-badge {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); padding: 1px 8px; border-radius: 999px;
+}
+.proj-repo-body { padding: 6px 12px 10px 36px; background: var(--border-soft); }
+
+/* ===== 年历 ===== */
+.year-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.year-cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+.year-cell:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+.year-cell-month {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.year-cell-hours {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 6px 0 2px;
+}
+.year-cell-meta {
+  font-size: 11px;
+}
+.year-cell-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.year-cell-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ===== 月报页 ===== */
+.warn-soft {
+  background: #fff7ed;
+  color: #b45309;
+  border: 1px solid #fed7aa;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.report-controls {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+.report-result {
+  padding: 16px 18px;
+}
+.report-area {
+  min-height: 560px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.saved-section {
+  margin-top: 16px;
+  padding: 16px 18px;
+}
+.saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.saved-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s, border-color 0.1s;
+}
+.saved-row:hover {
+  background: var(--border-soft);
+  border-color: var(--accent);
+}
+.saved-date {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.saved-preview {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-provider {
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.tpl-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.tpl-act {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+}
+.tpl-act:hover {
+  color: var(--accent);
+}
+
+/* ===== 模板/通用弹窗 ===== */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-card {
+  width: 560px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+}
+.tpl-name-input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+}
+.tpl-area {
+  min-height: 200px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ===== Git 仓库 ===== */
+.repo-add {
+  margin-bottom: 12px;
+}
+.repo-add-meta {
+  margin-top: 8px;
+}
+.repo-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+.repo-proj-group {
+  border-left: 3px solid var(--border);
+  padding-left: 14px;
+}
+.repo-proj-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.repo-proj-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.repo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.repo-row:hover {
+  background: var(--border-soft);
+}
+.repo-path {
+  flex: 1;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+/* ===== Git 扫描 ===== */
+.git-groups { display: flex; flex-direction: column; gap: 14px; }
+.git-group { padding: 12px 16px; }
+.git-group-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.git-repo-name { font-weight: 600; font-size: 14px; color: var(--text); }
+.git-row { display: flex; align-items: center; gap: 12px; padding: 9px 6px; border-radius: 6px; }
+.git-row:hover { background: var(--border-soft); }
+.git-hash { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 12px; color: var(--text-3); flex-shrink: 0; }
+.git-subject { flex: 1; font-size: 13px; color: var(--text); word-break: break-word; }
+.git-date { font-size: 12px; flex-shrink: 0; }
+.git-month.is-active { border-color: var(--accent); }
+.capture-date { width: auto; }
+
+/* 报告大文本框 */
+.report-area {
+  width: 100%;
+  min-height: 300px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.report-area:focus { border-color: var(--accent); }
+
+/* 弹窗遮罩 */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-card {
+  width: 90%; max-width: 640px; max-height: 80vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.tpl-name-input {
+  font-family: inherit; font-size: 14px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 12px; outline: none;
+}
+.tpl-name-input:focus { border-color: var(--accent); }
+
+/* 年历面板 */
+.year-grid-wrap { overflow: auto; }
+.year-month-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 16px; max-height: 70vh; overflow: auto;
+}
+.year-report-item {
+  border-bottom: 1px solid var(--border); padding: 12px 0;
+}
+.year-report-item:last-child { border-bottom: none; }
+.year-report-body {
+  background: var(--border-soft); border-radius: 8px; padding: 12px;
+  font-family: inherit; font-size: 13px; line-height: 1.7; color: var(--text);
+  white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow: auto; margin: 0;
+}
+.year-cell.selected { border-color: var(--accent); background: var(--accent-soft); }
+
+/* 报告页左右布局 */
+.report-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 16px;
+  align-items: start;
+}
+.report-main { min-width: 0; }
+.report-side {
+  position: sticky; top: 0; max-height: calc(100vh - 80px); overflow: auto;
+}
+@media (max-width: 800px) {
+  .report-layout { grid-template-columns: 1fr; }
+  .report-side { position: static; max-height: none; }
+}
+
+/* 已保存报告 - 时间轴样式 */
+.saved-timeline { position: relative; }
+.saved-timeline::before {
+  content: ''; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px;
+  background: var(--border); border-radius: 1px;
+}
+.saved-tl-item {
+  position: relative; padding-left: 22px; margin-bottom: 4px;
+}
+.saved-tl-dot {
+  position: absolute; left: 1px; top: 10px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.saved-tl-body {
+  padding: 8px 6px; border-radius: 6px; cursor: pointer; transition: background 0.1s;
+}
+.saved-tl-body:hover { background: var(--border-soft); }
+.saved-tl-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+}
+.saved-tl-preview {
+  font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.saved-toggle-all {
+  display: block; width: 100%; text-align: center; margin-top: 10px;
+  border: none; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: 12px; color: var(--accent); padding: 6px; border-radius: 4px;
+}
+.saved-toggle-all:hover { background: var(--accent-soft); }
+
+/* 已保存报告列表 */
+.saved-item { border-bottom: 1px solid var(--border); }
+.saved-item:last-child { border-bottom: none; }
+.saved-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 4px;
+  cursor: pointer; transition: background 0.1s;
+}
+.saved-row:hover { background: var(--border-soft); border-radius: 6px; }
+.saved-period {
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); padding: 2px 8px; border-radius: 4px;
+  white-space: nowrap; min-width: 70px; text-align: center;
+}
+.saved-date { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.saved-preview { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.saved-provider { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.saved-toggle { font-size: 12px; color: var(--accent); white-space: nowrap; }
+.saved-expanded { padding: 0 4px 12px; }
+.saved-full {
+  background: var(--border-soft); border-radius: 8px; padding: 14px;
+  font-family: inherit; font-size: 13px; line-height: 1.8; color: var(--text);
+  white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow: auto;
+  margin: 8px 0 0;
+}
+.git-row.imported { opacity: 0.45; }
+.git-imported-badge { font-size: 10px; background: var(--border-soft); color: var(--text-3); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+.git-smart-meta { font-size: 11px; white-space: nowrap; }
+.git-hours { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }

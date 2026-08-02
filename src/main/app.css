@@ -1,0 +1,136 @@
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--app-bg);
+}
+
+/* ============ 深色图标轨 ============ */
+.rail {
+  width: 64px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--sidebar-bg);
+  padding: 18px 0 12px;
+}
+.rail-brand {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  line-height: 1;
+}
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  align-items: center;
+}
+.rail-item {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  transition: background 0.12s, color 0.12s;
+}
+.rail-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.rail-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+.rail-icon {
+  font-size: 20px;
+}
+.rail-emoji {
+  font-size: 13px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+.rail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ============ 主内容区 ============ */
+.app-content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px 40px 56px;
+}
+.main-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.titlebar {
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-left: 12px;
+}
+.win-controls {
+  display: flex;
+}
+.win-btn {
+  width: 40px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+.win-btn:hover {
+  background: var(--border-soft);
+  color: var(--text);
+}
+.win-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  height: 60vh;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  gap: 16px;
+}
+.page-head .left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

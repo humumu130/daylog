@@ -1,0 +1,163 @@
+/* ============ 全局基础 ============ */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --app-bg: #f8fafc;
+  --sidebar-bg: #1e293b;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --text-2: #64748b;
+  --text-3: #94a3b8;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --border: #e2e8f0;
+  --border-soft: #f1f5f9;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow-soft: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* FluentProvider 注入的设计令牌在该元素及其子树生效 */
+.app-shell {
+  min-height: 100%;
+  background: var(--colorNeutralBackground2, #fafafa);
+  color: var(--colorNeutralForeground1);
+}
+
+/* 无边框窗口拖拽区 */
+*[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+*[data-tauri-drag-region] input,
+*[data-tauri-drag-region] textarea,
+*[data-tauri-drag-region] button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* ============ 滚动条 ============ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--colorNeutralStroke2, #d1d1d1);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--colorNeutralStroke1, #b3b3b3);
+  background-clip: content-box;
+}
+
+/* ============ 通用工具类 ============ */
+.muted {
+  color: var(--colorNeutralForeground2);
+}
+.subtle {
+  color: var(--colorNeutralForeground3);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+}
+.spread {
+  justify-content: space-between;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.grow {
+  flex: 1 1 auto;
+}
+.center {
+  align-items: center;
+  justify-content: center;
+}
+.gap-sm {
+  gap: 4px;
+}
+.gap-md {
+  gap: 8px;
+}
+.gap-lg {
+  gap: 16px;
+}
+.pad {
+  padding: 16px;
+}
+.pad-sm {
+  padding: 8px;
+}
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+.empty {
+  color: var(--colorNeutralForeground3);
+  font-size: 13px;
+  padding: 24px;
+  text-align: center;
+}
+
+/* 卡片表面 */
+.card {
+  background: var(--colorNeutralBackground1, #fff);
+  border: 1px solid var(--colorNeutralStroke2, #e5e5e5);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: var(--shadow2);
+}
+
+/* 小标签徽章 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--colorNeutralStroke2, #e5e5e5);
+  background: var(--colorNeutralBackground1, #fff);
+  color: var(--colorNeutralForeground2);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.chip:hover {
+  background: var(--colorNeutralBackground1Hover, #f5f5f5);
+}
+.chip.active {
+  background: var(--colorBrandBackground2, #e8eefd);
+  border-color: var(--colorBrandStroke1, #6a9cff);
+  color: var(--colorBrandForeground1, #0a53cb);
+  font-weight: 600;
+}

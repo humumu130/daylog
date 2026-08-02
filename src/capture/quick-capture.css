@@ -1,0 +1,61 @@
+.capture-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--colorNeutralBackground1);
+  border: 1px solid var(--colorNeutralStroke2);
+}
+
+.capture-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 8px 9px 14px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.capture-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--colorNeutralForeground2);
+}
+.qc-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 5px;
+  color: var(--colorNeutralForeground2);
+  display: inline-flex;
+}
+.qc-close:hover {
+  background: var(--colorNeutralBackground3);
+  color: var(--colorNeutralForeground1);
+}
+
+.capture-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+.capture-input {
+  width: 100%;
+}
+.capture-input input {
+  font-size: 16px;
+}
+.capture-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 24px;
+}
+.chip.clickable {
+  font-weight: 600;
+}
+.chip.count-chip {
+  background: var(--colorBrandBackground2);
+  color: var(--colorBrandForeground1);
+  border-color: var(--colorBrandStroke1);
+}
