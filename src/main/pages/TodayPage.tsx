@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRegular, ArrowRightRegular, CopyRegular } from '@fluentui/react-icons';
+import { ArrowLeftRegular, ArrowRightRegular } from '@fluentui/react-icons';
 import { CaptureBar } from '../components/CaptureBar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TimelineEntry } from '../components/TimelineEntry';
@@ -13,14 +13,11 @@ import { useTasksStore } from '../../stores/useTasksStore';
 import { useUiStore } from '../../stores/useUiStore';
 import { addDays, formatYMDChinese, parseYMD, todayYMD, weekdayCN } from '../../utils/date';
 import { formatHM } from '../../utils/halfDay';
-import { formatZhuchiyu } from '../../utils/zhuchiyu';
-import { copyText } from '../../services/clipboard';
 
 const GOAL_MIN = 8 * 60;
 
 export function TodayPage() {
   const [day, setDay] = useState(todayYMD());
-  const [notice, setNotice] = useState('');
   const [editor, setEditor] = useState<{ open: boolean; half: Half; record?: WorkRecord | null }>({
     open: false,
     half: 'morning',
@@ -56,15 +53,6 @@ export function TodayPage() {
   const dayRecords = useMemo(() => records.filter((r) => r.day === day), [records, day]);
   const totalMin = dayRecords.reduce((s, r) => s + (r.durationMin ?? 0), 0);
 
-  function flash(m: string) {
-    setNotice(m);
-    setTimeout(() => setNotice(''), 1800);
-  }
-  async function onCopyDay() {
-    const t = formatZhuchiyu({ records: dayRecords, tasks, projects });
-    await copyText(t || '（无记录）');
-    flash('已复制当日猪齿鱼格式');
-  }
   async function onSubmit(input: RecordInput, existing?: WorkRecord) {
     if (existing) await update(existing.id, input);
     else await create(input);
@@ -88,9 +76,6 @@ export function TodayPage() {
           </div>
         </div>
         <div className="today-head-right">
-          <button className="today-action" title="复制当日猪齿鱼格式" onClick={() => void onCopyDay()}>
-            <CopyRegular /> 复制
-          </button>
           <div className="today-stat-card">
             <ProgressRing progress={totalMin / GOAL_MIN} />
             <div className="stat-info">
@@ -101,7 +86,6 @@ export function TodayPage() {
           </div>
         </div>
       </header>
-      {notice && <div className="notice">{notice}</div>}
 
       <CaptureBar day={day} onDayChange={setDay} />
 
