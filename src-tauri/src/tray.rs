@@ -15,7 +15,7 @@ pub fn setup(app: &App) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show_main, &widget, &quick, &quit])?;
 
     let mut builder = TrayIconBuilder::new()
-        .tooltip("工作日志 WorkLog")
+        .tooltip("日迹")
         .menu(&menu)
         .show_menu_on_left_click(false);
 

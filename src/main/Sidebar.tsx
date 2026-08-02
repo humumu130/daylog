@@ -29,8 +29,8 @@ export function Sidebar() {
 
   return (
     <aside className="rail">
-      <div className="rail-brand" title="今日" data-tauri-drag-region>
-        今日
+      <div className="rail-brand" title="日迹" data-tauri-drag-region>
+        日迹
       </div>
       <nav className="rail-nav">
         <button className="rail-item" title="搜索 (Ctrl+K)" onClick={openSearch}>

@@ -3,7 +3,7 @@
 pub fn auto_backup_cmd(data: String) -> Result<String, String> {
     let app_data = dirs_next::data_dir()
         .ok_or("找不到 app data 目录")?;
-    let backup_dir = app_data.join("com.today.worklog").join("backups");
+    let backup_dir = app_data.join("com.worklog.app").join("backups");
     std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("创建备份目录失败：{e}"))?;
 

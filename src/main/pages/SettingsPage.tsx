@@ -197,7 +197,7 @@ export function SettingsPage() {
           </div>
         </div>
         <div className="set-row">
-          <div className="set-label"><span>自动备份</span><span className="subtle">每次启动自动备份到 %AppData%/com.today.worklog/backups/，保留最近 5 份</span></div>
+          <div className="set-label"><span>自动备份</span><span className="subtle">每次启动自动备份到 %AppData%/com.worklog.app/backups/，保留最近 5 份</span></div>
           <span className="muted" style={{ fontSize: 12 }}>✓ 已启用</span>
         </div>
       </section>

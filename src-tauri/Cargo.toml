@@ -1,7 +1,7 @@
 [package]
 name = "worklog"
 version = "0.1.0"
-description = "WorkLog - 工作日志桌面插件"
+description = "日迹 - 工作日志桌面插件"
 authors = ["you"]
 edition = "2021"
 

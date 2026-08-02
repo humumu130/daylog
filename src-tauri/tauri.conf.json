@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "今日",
+  "productName": "日迹",
   "version": "0.1.0",
   "identifier": "com.worklog.app",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "今日",
+        "title": "日迹",
         "width": 1100,
         "height": 750,
         "minWidth": 900,
