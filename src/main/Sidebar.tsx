@@ -5,7 +5,6 @@ import {
   BranchRegular,
   CalendarMonthRegular,
   CalendarTodayRegular,
-  DocumentTextRegular,
   SettingsRegular,
 } from '@fluentui/react-icons';
 import { toggleWidget } from '../services/window';
@@ -15,9 +14,8 @@ type IconType = ComponentType<SVGProps<SVGSVGElement>>;
 
 const NAV: { to: string; label: string; icon: IconType }[] = [
   { to: '/today', label: '今日', icon: CalendarTodayRegular },
-  { to: '/calendar', label: '日历', icon: CalendarMonthRegular },
+  { to: '/calendar', label: '月报', icon: CalendarMonthRegular },
   { to: '/git', label: 'Git', icon: BranchRegular },
-  { to: '/report', label: '月报', icon: DocumentTextRegular },
   { to: '/settings', label: '设置', icon: SettingsRegular },
 ];
 

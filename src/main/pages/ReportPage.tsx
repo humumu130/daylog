@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Spinner } from '@fluentui/react-components';
 import { ArrowLeftRegular, ArrowRightRegular, CopyRegular } from '@fluentui/react-icons';
 import { useProjectsStore } from '../../stores/useProjectsStore';
@@ -6,7 +6,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import * as db from '../../services/db';
 import { buildMonthSummary, generateAnnualReport, generateReport } from '../../services/llm';
 import { currentYM, monthRange } from '../../utils/date';
-import type { Report, ReportTemplate } from '../../types/models';
+import type { ReportTemplate } from '../../types/models';
 import { Select } from '../components/Select';
 import { copyText } from '../../services/clipboard';
 
@@ -14,12 +14,6 @@ function shiftMonth(ym: string, delta: number): string {
   const [y, m] = ym.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function periodLabel(month: string): string {
-  if (month.includes('Q')) return month.replace(/(\d{4})Q(\d)/, '$1 Q$2 季报');
-  if (month.endsWith('年报')) return month;
-  return month;
 }
 
 export function ReportPage() {
@@ -35,8 +29,6 @@ export function ReportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [allReports, setAllReports] = useState<Report[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [tplOpen, setTplOpen] = useState(false);
   const [tplName, setTplName] = useState('');
@@ -56,19 +48,7 @@ export function ReportPage() {
     })();
   }, []);
 
-  async function reloadAll() { setAllReports(await db.listAllReports()); }
-  useEffect(() => { void reloadAll(); }, []);
-
-  const [showAllSaved, setShowAllSaved] = useState(false);
-  const filteredReports = useMemo(() => {
-    if (showAllSaved) return allReports;
-    const isMonth = (m: string) => /^\d{4}-\d{2}$/.test(m);
-    const isQuarter = (m: string) => /^\d{4}Q\d$/.test(m);
-    const isYear = (m: string) => /年报$/.test(m);
-    if (reportMode === 'month') return allReports.filter((r) => isMonth(r.month));
-    if (reportMode === 'quarter') return allReports.filter((r) => isQuarter(r.month));
-    return allReports.filter((r) => isYear(r.month));
-  }, [allReports, showAllSaved, reportMode]);
+  async function reloadAll() { /* no-op: reports are now browsed in calendar */ }
 
   function flash(m: string) { setNotice(m); setTimeout(() => setNotice(''), 1800); }
 
@@ -167,9 +147,7 @@ export function ReportPage() {
         </div>
       </div>
 
-      <div className="report-layout">
-        {/* ===== 左：生成区 ===== */}
-        <div className="report-main">
+      <div>
           <div className="card" style={{ marginBottom: 12 }}>
             <div className="row gap-md wrap" style={{ alignItems: 'flex-end' }}>
               <div className="col grow" style={{ minWidth: 180 }}>
@@ -225,52 +203,9 @@ export function ReportPage() {
 
           {(reportMode === 'year' || reportMode === 'quarter') && (
             <div className="set-tip" style={{ marginTop: 12 }}>
-              {modeLabel}基于<b>已保存的各月月报</b>汇总生成。如果某月还没月报，先切到「月报」生成保存，或直接粘贴外部月报文本保存。
+              {modeLabel}基于<b>已保存的各月月报</b>汇总生成。如果某月还没月报，先切到「月报」生成保存，或直接粘贴外部月报文本保存。已保存的报告可在「日历」页查看。
             </div>
           )}
-        </div>
-
-        {/* ===== 右：已保存报告 ===== */}
-        <div className="report-side">
-          <div className="card" style={{ padding: '14px 16px' }}>
-            <h3 className="set-h" style={{ marginBottom: 12 }}>
-              已保存{showAllSaved ? '（全部）' : `（${modeLabel}）`}（{filteredReports.length}）
-            </h3>
-            {filteredReports.length === 0 ? (
-              <div className="empty" style={{ padding: 24 }}>还没有已保存的报告</div>
-            ) : (
-              <div className="saved-timeline">
-                {filteredReports.map((r) => (
-                  <div key={r.id} className="saved-tl-item">
-                    <div className="saved-tl-dot" />
-                    <div className="saved-tl-body" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
-                      <div className="saved-tl-head">
-                        <span className="saved-period">{periodLabel(r.month)}</span>
-                        <span className="muted" style={{ fontSize: 11 }}>
-                          {new Date(r.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="saved-provider">{r.provider === 'claude-code' ? 'Claude' : '云端'}</span>
-                      </div>
-                      <div className="muted saved-tl-preview">{r.body.slice(0, 50).replace(/\n/g, ' ')}…</div>
-                      {expandedId === r.id && (
-                        <div className="saved-expanded">
-                          <pre className="saved-full">{r.body}</pre>
-                          <div className="row gap-sm" style={{ marginTop: 8 }}>
-                            <Button size="small" onClick={() => { setResult(r.body); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>载入编辑</Button>
-                            <Button size="small" icon={<CopyRegular />} onClick={() => void copyText(r.body)}>复制</Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button className="saved-toggle-all" onClick={() => setShowAllSaved((v) => !v)}>
-              {showAllSaved ? '只看当前类型' : '显示全部类型'}
-            </button>
-          </div>
-        </div>
       </div>
 
       {tplOpen && (

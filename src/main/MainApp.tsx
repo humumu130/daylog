@@ -5,9 +5,8 @@ import { darkTheme, lightTheme } from '../styles/theme';
 import { Sidebar } from './Sidebar';
 import { WindowControls } from './components/WindowControls';
 import { TodayPage } from './pages/TodayPage';
-import { CalendarPage } from './pages/CalendarPage';
+import { ReviewPage } from './pages/ReviewPage';
 import { GitPage } from './pages/GitPage';
-import { ReportPage } from './pages/ReportPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -84,9 +83,9 @@ export function MainApp() {
             <Routes>
               <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/today" element={<TodayPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/calendar" element={<ReviewPage />} />
               <Route path="/git" element={<GitPage />} />
-              <Route path="/report" element={<ReportPage />} />
+              <Route path="/report" element={<ReviewPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           ) : (

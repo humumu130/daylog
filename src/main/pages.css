@@ -511,7 +511,25 @@ textarea.sel {
 }
 .year-cell.selected { border-color: var(--accent); background: var(--accent-soft); }
 
-/* 报告页左右布局 */
+/* ReviewPage tab */
+.review-tabs { margin-bottom: 10px; }
+
+/* 日历内嵌月报 */
+.cal-month-reports { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.cal-mr-head { font-size: 12px; font-weight: 600; color: var(--text-3); margin-bottom: 6px; }
+.cal-mr-item { border-bottom: 1px solid var(--border); }
+.cal-mr-item:last-child { border-bottom: none; }
+.cal-mr-row { display: flex; align-items: center; gap: 8px; padding: 6px 2px; cursor: pointer; border-radius: 4px; }
+.cal-mr-row:hover { background: var(--border-soft); }
+.cal-mr-preview { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-mr-toggle { font-size: 12px; color: var(--accent); white-space: nowrap; }
+.cal-mr-expanded { padding: 0 2px 8px; }
+.cal-mr-body {
+  background: var(--border-soft); border-radius: 6px; padding: 10px;
+  font-family: inherit; font-size: 12px; line-height: 1.7; color: var(--text);
+  white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; margin: 6px 0 0;
+}
+.cal-mr-edit { font-size: 12px; color: var(--accent); text-decoration: none; }
 .report-layout {
   display: grid;
   grid-template-columns: 1fr 360px;
