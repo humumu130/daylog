@@ -256,9 +256,9 @@ export function GitPage() {
       </div>
 
       <div className="row gap-sm wrap" style={{ marginBottom: 16 }}>
-        <Button size="small" appearance={period === 'today' ? 'primary' : 'secondary'} onClick={() => setPeriod('today')}>今天</Button>
-        <Button size="small" appearance={period === '7d' ? 'primary' : 'secondary'} onClick={() => setPeriod('7d')}>最近7天</Button>
-        <Button size="small" appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>
+        <Button size="small" style={{ minWidth: 80 }} appearance={period === 'today' ? 'primary' : 'secondary'} onClick={() => setPeriod('today')}>今天</Button>
+        <Button size="small" style={{ minWidth: 80 }} appearance={period === '7d' ? 'primary' : 'secondary'} onClick={() => setPeriod('7d')}>最近7天</Button>
+        <Button size="small" style={{ minWidth: 80 }} appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>
         <input type="month" className={`sel git-month${period === 'month' ? ' is-active' : ''}`} value={pickMonth}
           onChange={(e) => { setPickMonth(e.target.value); setPeriod('month'); }} style={{ width: 'auto' }} />
         <Button size="small" appearance="secondary" onClick={() => void scan()} disabled={loading}>重新扫描</Button>
