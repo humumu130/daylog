@@ -280,7 +280,11 @@ export function GitPage() {
       )}
 
       {loading && !showSmart && <Spinner label="扫描中…" />}
-      {showSmart && smartLoading && <Spinner label="智能整合中…（可切走，后台继续）" />}
+      {showSmart && smartLoading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '72px 0' }}>
+          <Spinner label="智能整合中…" />
+        </div>
+      )}
       {showSmart && smartError && (
         <div className="warn-soft">⚠ 整合失败：{smartError}。可切回「原始提交」或点「重新整合」重试。</div>
       )}
