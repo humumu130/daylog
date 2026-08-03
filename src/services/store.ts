@@ -20,6 +20,7 @@ export const SettingKeys = {
   autostart: 'autostart',
   remindTime: 'remindTime',
   remindMinMinutes: 'remindMinMinutes',
+  dailyCapHours: 'dailyCapHours',
 } as const;
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
@@ -48,10 +49,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autostart: true,
   remindTime: '18:00',
   remindMinMinutes: 8 * 60,
+  dailyCapHours: 8,
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
@@ -63,6 +65,7 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<boolean>(SettingKeys.autostart, DEFAULT_SETTINGS.autostart),
     getSetting<string>(SettingKeys.remindTime, DEFAULT_SETTINGS.remindTime),
     getSetting<number>(SettingKeys.remindMinMinutes, DEFAULT_SETTINGS.remindMinMinutes),
+    getSetting<number>(SettingKeys.dailyCapHours, DEFAULT_SETTINGS.dailyCapHours),
   ]);
-  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours };
 }

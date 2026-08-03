@@ -33,6 +33,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (partial.autostart !== undefined) entries.push([SettingKeys.autostart, partial.autostart]);
     if (partial.remindTime !== undefined) entries.push([SettingKeys.remindTime, partial.remindTime]);
     if (partial.remindMinMinutes !== undefined) entries.push([SettingKeys.remindMinMinutes, partial.remindMinMinutes]);
+    if (partial.dailyCapHours !== undefined) entries.push([SettingKeys.dailyCapHours, partial.dailyCapHours]);
     await Promise.all(entries.map(([k, v]) => setSetting(k, v)));
   },
 }));

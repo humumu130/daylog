@@ -99,4 +99,6 @@ export interface AppSettings {
   remindTime: string;
   /** 提醒阈值（分钟）：今日总工时低于此值则提醒 */
   remindMinMinutes: number;
+  /** 单日工时上限（小时）：Git 区间分配时遵守，默认 8 */
+  dailyCapHours: number;
 }

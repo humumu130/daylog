@@ -33,6 +33,7 @@ export function SettingsPage() {
 
   // 展开/折叠
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showBatch, setShowBatch] = useState(false); // 高级：批量导入仓库（默认收起）
 
   // 内联编辑：仓库
   const [editRid, setEditRid] = useState<string | null>(null);
@@ -69,6 +70,14 @@ export function SettingsPage() {
     if (pid) setExpanded((prev) => new Set(prev).add(pid));
   }
   async function removeRepo(id: string) { await patch({ repos: settings.repos.filter((r) => r.id !== id) }); }
+  async function addRepoToProject(projectId: string, path: string, author: string) {
+    const p = path.trim();
+    if (!p) return;
+    const r: GitRepo = { id: crypto.randomUUID(), path: p, projectId, author: author.trim() };
+    await patch({ repos: [...settings.repos, r] });
+    flash('已关联仓库');
+    setExpanded((prev) => new Set(prev).add(projectId));
+  }
 
   function startEditRepo(r: GitRepo) { setEditRid(r.id); setEditRpath(r.path); setEditRproj(r.projectId ?? ''); setEditRauthor(r.author); }
   async function saveEditRepo() {
@@ -157,6 +166,21 @@ export function SettingsPage() {
             <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时提醒</span>
           </div>
         </div>
+        <div className="set-row">
+          <div className="set-label"><span>单日工时上限</span><span className="subtle">Git 区间分配时遵守；超出会标为加班</span></div>
+          <div className="row gap-sm">
+            <input
+              type="number"
+              className="sel"
+              min={1}
+              max={16}
+              value={settings.dailyCapHours}
+              onChange={(e) => void patch({ dailyCapHours: Math.max(1, Number(e.target.value) || 8) })}
+              style={{ width: 64 }}
+            />
+            <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时/天</span>
+          </div>
+        </div>
       </section>
 
       {/* LLM */}
@@ -212,27 +236,35 @@ export function SettingsPage() {
       {/* 项目与仓库（整合） */}
       <section className="card set-section">
         <h3 className="set-h">项目与仓库</h3>
+        <p className="set-tip">📌 项目用来给日志归类；每个项目可关联一个或多个本地 Git 仓库，用于自动扫描提交导入。先建项目，再在项目卡里「+ 关联仓库」。</p>
 
-        {/* 添加项目 */}
+        {/* 新建项目（名字必填；颜色默认可改；关键词可选） */}
         <div className="row gap-sm proj-add">
-          <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名" />
-          <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" />
-          <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词，逗号分隔" className="grow" />
-          <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>添加项目</Button>
+          <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名（必填）" />
+          <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
+          <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔；用于自动归类）" className="grow" />
+          <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
         </div>
 
-        {/* 批量加仓库 */}
-        <div className="repo-add">
-          <textarea className="sel" value={repoPaths} onChange={(e) => setRepoPaths(e.target.value)}
-            placeholder={'批量添加仓库（每行一个路径），映射到下方选的项目：\nD:\\code\\pcs-user\nD:\\code\\pcs-order'} rows={3} />
-          <div className="row gap-sm repo-add-meta">
-            <div style={{ width: 200 }}>
-              <Select value={repoProj} onChange={setRepoProj} options={projSelectOptions} />
-            </div>
-            <input className="sel" value={repoAuthor} onChange={(e) => setRepoAuthor(e.target.value)} placeholder="作者(可选)" style={{ flex: 1, width: 'auto' }} />
-            <Button appearance="primary" icon={<AddRegular />} onClick={() => void addRepos()}>添加仓库</Button>
-          </div>
+        {/* 高级：批量导入仓库（多行），默认收起，避免新手混乱 */}
+        <div style={{ marginTop: 6 }}>
+          <button onClick={() => setShowBatch((s) => !s)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12, padding: 0 }}>
+            {showBatch ? '收起批量导入 ▴' : '高级 ▸ 批量导入仓库（多个路径）'}
+          </button>
         </div>
+        {showBatch && (
+          <div className="repo-add" style={{ marginTop: 8 }}>
+            <textarea className="sel" value={repoPaths} onChange={(e) => setRepoPaths(e.target.value)}
+              placeholder={'每行一个仓库路径，关联到下方选的项目：\nD:\\code\\pcs-user\nD:\\code\\pcs-order'} rows={3} />
+            <div className="row gap-sm repo-add-meta">
+              <div style={{ width: 200 }}>
+                <Select value={repoProj} onChange={setRepoProj} options={projSelectOptions} />
+              </div>
+              <input className="sel" value={repoAuthor} onChange={(e) => setRepoAuthor(e.target.value)} placeholder="作者(可选)" style={{ flex: 1, width: 'auto' }} />
+              <Button appearance="primary" icon={<AddRegular />} onClick={() => void addRepos()}>添加仓库</Button>
+            </div>
+          </div>
+        )}
 
         {/* 项目列表（含仓库折叠） */}
         <div className="proj-repo-list">
@@ -275,10 +307,10 @@ export function SettingsPage() {
                     {/* 展开后的仓库列表 */}
                     {isOpen && (
                       <div className="proj-repo-body">
-                        {projRepos.length === 0 ? (
-                          <div className="muted" style={{ fontSize: 12, padding: '4px 0 8px' }}>暂无仓库，用上方"批量添加"添加</div>
-                        ) : (
-                          projRepos.map((r) => (
+                        {projRepos.length === 0 && (
+                          <div className="muted" style={{ fontSize: 12, padding: '4px 0 8px' }}>还没有仓库，在下方输入路径关联一个。</div>
+                        )}
+                        {projRepos.map((r) => (
                             <div key={r.id}>
                               {editRid === r.id ? (
                                 <div className="row gap-sm wrap repo-edit">
@@ -304,7 +336,8 @@ export function SettingsPage() {
                               )}
                             </div>
                           ))
-                        )}
+                        }
+                        <RepoAdder projectId={p.id} onAdd={(pid, path, author) => void addRepoToProject(pid, path, author)} />
                       </div>
                     )}
                   </>
@@ -458,6 +491,26 @@ function LlmTestButton({ config }: { config: LlmConfig }) {
       </Button>
       {status === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>✓ {msg}</span>}
       {status === 'fail' && <span className="muted" style={{ color: '#e81123', fontSize: 12 }}>✗ {msg.slice(0, 80)}</span>}
+    </div>
+  );
+}
+
+/** 项目卡内的内联「+ 关联仓库」：路径 + 作者，关联到所属项目 */
+function RepoAdder({ projectId, onAdd }: { projectId: string; onAdd: (projectId: string, path: string, author: string) => void }) {
+  const [path, setPath] = useState('');
+  const [author, setAuthor] = useState('');
+  return (
+    <div className="row gap-sm" style={{ marginTop: 6 }}>
+      <Input value={path} onChange={(_, d) => setPath(d.value)} placeholder="关联仓库路径，如 D:\\code\\xxx" className="grow" />
+      <Input value={author} onChange={(_, d) => setAuthor(d.value)} placeholder="作者(可选)" style={{ width: 120 }} />
+      <Button
+        size="small"
+        appearance="primary"
+        icon={<AddRegular />}
+        onClick={() => { if (path.trim()) { onAdd(projectId, path, author); setPath(''); setAuthor(''); } }}
+      >
+        关联
+      </Button>
     </div>
   );
 }

@@ -3,26 +3,16 @@ import { Button, Checkbox, Spinner } from '@fluentui/react-components';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { signatureOf, useGitStore } from '../../stores/useGitStore';
 import { scanRepos, type GitCommit } from '../../services/git';
-import { consolidateCommits } from '../../services/llm';
 import { notifyChanged } from '../../services/events';
-import { currentYM, todayYMD } from '../../utils/date';
+import { currentYM } from '../../utils/date';
 import { formatHours } from '../../utils/halfDay';
 import * as db from '../../services/db';
+import { RangeAllocModal, type SelectedItem } from '../components/RangeAllocModal';
 
 type Period = 'today' | '7d' | '30d' | 'month';
 type AnnotatedCommit = GitCommit & { imported: boolean };
-
-interface SmartItem {
-  title: string;
-  count: number;
-  day: string;
-  projectId: string | null;
-  hours: number;
-  hashes: string[];
-  imported: boolean;
-  isExisting?: boolean;
-}
 
 const RAW_DEFAULT_MIN = 30;
 
@@ -31,8 +21,17 @@ export function GitPage() {
   const gitMode = useSettingsStore((s) => s.settings.gitImportMode);
   const patchSettings = useSettingsStore((s) => s.patch);
   const llmConfig = useSettingsStore((s) => s.settings.llm);
+  const dailyCap = useSettingsStore((s) => s.settings.dailyCapHours);
   const projects = useProjectsStore((s) => s.projects);
   const create = useRecordsStore((s) => s.create);
+
+  // 智能整合状态在 store 里（跨页面存活，切走不丢、不重跑）
+  const smartItems = useGitStore((s) => s.smartItems);
+  const smartStatus = useGitStore((s) => s.smartStatus);
+  const smartError = useGitStore((s) => s.smartError);
+  const consolidatedSignature = useGitStore((s) => s.consolidatedSignature);
+  const runConsolidate = useGitStore((s) => s.runConsolidate);
+  const setItemHours = useGitStore((s) => s.setItemHours);
 
   const [period, setPeriod] = useState<Period>('30d');
   const [pickMonth, setPickMonth] = useState(currentYM());
@@ -41,11 +40,14 @@ export function GitPage() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState('');
-  const [smartItems, setSmartItems] = useState<SmartItem[]>([]);
-  const [smartLoading, setSmartLoading] = useState(false);
-  const [smartError, setSmartError] = useState('');
-  const [hasConsolidated, setHasConsolidated] = useState(false);
+  const [rangeOpen, setRangeOpen] = useState(false);
   const knownHashesRef = useMemo(() => ({ current: new Set<string>() }), []);
+
+  const showSmart = gitMode === 'smart';
+  const smartLoading = smartStatus === 'loading';
+  const currentSig = useMemo(() => signatureOf(commits), [commits]);
+  // 原始提交是否已变化（有旧结果但指纹不同）→ 提示重新整合，不自动跑
+  const smartStale = smartItems.length > 0 && consolidatedSignature !== currentSig && currentSig !== '';
 
   const { since, until } = useMemo(() => {
     if (period === 'today') return { since: 'today', until: undefined as string | undefined };
@@ -69,46 +71,10 @@ export function GitPage() {
     return hashes;
   }
 
-  async function runConsolidate(cs: GitCommit[], known: Set<string>) {
-    setSmartLoading(true);
-    setSmartError('');
-    setHasConsolidated(true);
-    try {
-      const existing = await db.listRecordsByRange('2000-01-01', '2999-12-31');
-      const existingInput = existing.map((r) => ({ content: r.content, project: undefined }));
-      const items = await consolidateCommits(cs, llmConfig, existingInput);
-      const mapped: SmartItem[] = items.map((it) => {
-        const cs2 = cs.filter((c) => it.hashes.includes(c.hash));
-        const day = cs2.map((c) => c.date).sort().pop() ?? todayYMD();
-        const pids = new Set(cs2.map((c) => c.projectId).filter(Boolean) as string[]);
-        const projectId = pids.size === 1 ? [...pids][0] : (cs2[0]?.projectId ?? null);
-        const isExisting = it.status === 'existing';
-        return {
-          title: it.title,
-          count: cs2.length,
-          day,
-          projectId,
-          hours: it.hours ?? 1,
-          hashes: it.hashes,
-          imported: it.hashes.every((h) => known.has(h)),
-          isExisting,
-        };
-      });
-      setSmartItems(mapped);
-      setChecked(new Set(mapped.filter((i) => !i.imported && !i.isExisting).map((_, i) => `s${i}`)));
-    } catch (e) {
-      setSmartError(e instanceof Error ? e.message : String(e));
-      setSmartItems([]);
-    } finally {
-      setSmartLoading(false);
-    }
-  }
-
   async function scan() {
     setLoading(true);
     setErrors([]);
     setDone('');
-    setSmartError('');
     try {
       const known = await loadKnownHashes();
       const res = await scanRepos(repos, since, until);
@@ -116,10 +82,6 @@ export function GitPage() {
       setCommits(annotated);
       setErrors(res.errors);
       setChecked(new Set(annotated.filter((c) => !c.imported).map((c) => `r${c.hash}${c.repoId}`)));
-      // 智能模式：仅首次自动整合，之后保留结果等用户手动触发
-      if (gitMode === 'smart' && res.commits.length > 0 && !hasConsolidated) {
-        await runConsolidate(res.commits, known);
-      }
     } catch (e) {
       setErrors([{ path: '', error: String(e) }]);
     } finally {
@@ -131,13 +93,28 @@ export function GitPage() {
     if (repos.length) void scan();
     else setCommits([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repos.length, period, pickMonth, gitMode]);
+  }, [repos.length, period, pickMonth]);
+
+  // 首次进入 smart 模式且没整合过 → 自动整合一次（之后切走回来不重跑；提交变化则提示）
+  useEffect(() => {
+    if (!showSmart || commits.length === 0) return;
+    if (smartStatus === 'loading') return;
+    if (smartItems.length === 0 && consolidatedSignature === null && smartStatus !== 'error') {
+      void runConsolidate(commits, llmConfig, knownHashesRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSmart, commits, smartStatus, smartItems.length, consolidatedSignature]);
+
+  // 整合结果变化时，重置勾选为新的可导入项
+  useEffect(() => {
+    if (showSmart && smartItems.length > 0) {
+      setChecked(new Set(smartItems.map((it, i) => ({ it, i })).filter((x) => !x.it.imported && !x.it.isExisting).map((x) => `s${x.i}`)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smartItems]);
 
   function toggleMode(m: 'raw' | 'smart') {
     void patchSettings({ gitImportMode: m });
-    if (m === 'smart' && commits.length > 0 && smartItems.length === 0 && !smartLoading) {
-      void runConsolidate(commits, knownHashesRef.current);
-    }
     if (m === 'raw') {
       setChecked(new Set(commits.filter((c) => !c.imported).map((c) => `r${c.hash}${c.repoId}`)));
     }
@@ -152,57 +129,6 @@ export function GitPage() {
     });
   }
 
-  async function doImport() {
-    let count = 0;
-    if (gitMode === 'smart') {
-      const sel = smartItems.filter((_, i) => checked.has(`s${i}`));
-      for (const it of sel) {
-        await create({
-          content: it.title,
-          durationMin: Math.round(it.hours * 60),
-          day: it.day,
-          half: 'morning',
-          taskId: null,
-          projectId: it.projectId,
-          source: 'git',
-          meta: { git_hashes: it.hashes },
-        });
-        count++;
-      }
-    } else {
-      const sel = commits.filter((c) => checked.has(`r${c.hash}${c.repoId}`));
-      for (const c of sel) {
-        await create({
-          content: c.subject,
-          durationMin: RAW_DEFAULT_MIN,
-          day: c.date,
-          half: 'morning',
-          taskId: null,
-          projectId: c.projectId,
-          source: 'git',
-          meta: { git_hash: c.hash },
-        });
-        count++;
-      }
-    }
-    await notifyChanged();
-    setDone(`已导入 ${count} 条`);
-    setTimeout(() => setDone(''), 2000);
-    setChecked(new Set());
-    void loadKnownHashes();
-  }
-
-  if (repos.length === 0) {
-    return (
-      <div className="empty" style={{ padding: 56 }}>
-        还没配置 Git 仓库。去「设置 → Git 仓库」添加本地仓库路径（可映射到项目），这里会自动扫描提交供审核导入。
-      </div>
-    );
-  }
-
-  const showSmart = gitMode === 'smart';
-
-  // 全选/取消全选（针对当前模式的可选条目：排除已导入/已有记录）
   const selectableKeys = showSmart
     ? smartItems.flatMap((item, i) => (!item.isExisting && !item.imported ? [`s${i}`] : []))
     : commits.filter((c) => !c.imported).map((c) => `r${c.hash}${c.repoId}`);
@@ -215,6 +141,104 @@ export function GitPage() {
       return next;
     });
   }
+
+  async function doImport() {
+    let count = 0;
+    if (showSmart) {
+      const sel = smartItems.filter((_, i) => checked.has(`s${i}`));
+      for (const it of sel) {
+        await create({
+          content: it.title, durationMin: Math.round(it.hours * 60), day: it.day, half: 'morning',
+          taskId: null, projectId: it.projectId, source: 'git', meta: { git_hashes: it.hashes },
+        });
+        count++;
+      }
+    } else {
+      const sel = commits.filter((c) => checked.has(`r${c.hash}${c.repoId}`));
+      for (const c of sel) {
+        await create({
+          content: c.subject, durationMin: RAW_DEFAULT_MIN, day: c.date, half: 'morning',
+          taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash },
+        });
+        count++;
+      }
+    }
+    await notifyChanged();
+    setDone(`已导入 ${count} 条`);
+    setTimeout(() => setDone(''), 2000);
+    setChecked(new Set());
+    void loadKnownHashes();
+  }
+
+  // 构造给"分配到区间"弹窗的选中项
+  function buildSelected(): SelectedItem[] {
+    if (showSmart) {
+      return smartItems
+        .map((it, i) => ({ it, i }))
+        .filter((x) => !x.it.imported && !x.it.isExisting && checked.has(`s${x.i}`))
+        .map((x) => ({ key: `s${x.i}`, estHours: x.it.hours }));
+    }
+    return commits
+      .filter((c) => !c.imported && checked.has(`r${c.hash}${c.repoId}`))
+      .map((c) => ({ key: `r${c.hash}${c.repoId}`, estHours: RAW_DEFAULT_MIN / 60 }));
+  }
+
+  // 区间分配导入：每条按分配到的 day + hours 落库
+  async function importAllocations(allocs: { key: string; day: string; hours: number }[]) {
+    let count = 0;
+    if (showSmart) {
+      for (const a of allocs) {
+        const it = smartItems[Number(a.key.slice(1))];
+        if (!it) continue;
+        await create({
+          content: it.title, durationMin: Math.round(a.hours * 60), day: a.day, half: 'morning',
+          taskId: null, projectId: it.projectId, source: 'git', meta: { git_hashes: it.hashes },
+        });
+        count++;
+      }
+    } else {
+      for (const a of allocs) {
+        const c = commits.find((cc) => `r${cc.hash}${cc.repoId}` === a.key);
+        if (!c) continue;
+        await create({
+          content: c.subject, durationMin: Math.round(a.hours * 60), day: a.day, half: 'morning',
+          taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash },
+        });
+        count++;
+      }
+    }
+    await notifyChanged();
+    setRangeOpen(false);
+    setDone(`已导入 ${count} 条`);
+    setTimeout(() => setDone(''), 2000);
+    setChecked(new Set());
+    void loadKnownHashes();
+  }
+
+  if (repos.length === 0) {
+    return (
+      <div className="empty" style={{ padding: 56 }}>
+        还没配置 Git 仓库。去「设置 → 项目与仓库」添加本地仓库路径（关联到项目），这里会自动扫描提交供审核导入。
+      </div>
+    );
+  }
+
+  const selectedForRange = buildSelected();
+
+  const ActionBar = (
+    <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+      {done && <span className="muted">{done}</span>}
+      <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
+        {allSelected ? '取消全选' : '全选'}
+      </Button>
+      <Button size="small" onClick={() => setRangeOpen(true)} disabled={checked.size === 0}>
+        分配到区间…
+      </Button>
+      <Button appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
+        导入选中 ({checked.size})
+      </Button>
+    </div>
+  );
 
   return (
     <div>
@@ -242,7 +266,7 @@ export function GitPage() {
 
       {showSmart && (
         <div className="set-tip" style={{ marginBottom: 12 }}>
-          智能整合：LLM 自动合并相关提交（同一 bug/功能的代码+CI+部署+补丁）并估算耗时。
+          智能整合：LLM 自动合并相关提交并估算耗时；整合在后台跑，切走再回来不重跑。工时可手改。
           {!llmConfig.apiKey && llmConfig.kind !== 'claude-code' && ' ⚠ 需在设置配置 LLM。'}
         </div>
       )}
@@ -256,19 +280,29 @@ export function GitPage() {
       )}
 
       {loading && !showSmart && <Spinner label="扫描中…" />}
-      {showSmart && smartLoading && <Spinner label="智能整合中…" />}
-      {showSmart && smartError && <div className="warn-soft">⚠ 整合失败：{smartError}。可切回「原始提交」模式或点「重新整合」重试。</div>}
+      {showSmart && smartLoading && <Spinner label="智能整合中…（可切走，后台继续）" />}
+      {showSmart && smartError && (
+        <div className="warn-soft">⚠ 整合失败：{smartError}。可切回「原始提交」或点「重新整合」重试。</div>
+      )}
+      {showSmart && smartStale && !smartLoading && (
+        <div className="warn-soft">
+          原始提交有变化（已重新扫描）。{` `}
+          <Button size="small" appearance="primary" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)}>
+            重新整合
+          </Button>
+        </div>
+      )}
 
       {!loading && !showSmart && commits.length === 0 && errors.length === 0 && (
         <div className="empty" style={{ padding: 40 }}>该时段没有提交。</div>
       )}
 
-      {/* 智能模式：还没整合时的提示 */}
+      {/* 智能模式：还没整合、也没在跑、也没错 → 手动开始（首次通常自动触发，这是兜底） */}
       {!loading && showSmart && !smartLoading && smartItems.length === 0 && !smartError && commits.length > 0 && (
         <div className="empty" style={{ padding: 40 }}>
-          扫描到 {commits.length} 条提交。点下方按钮开始智能整合。
+          扫描到 {commits.length} 条提交。
           <div style={{ marginTop: 12 }}>
-            <Button appearance="primary" onClick={() => void runConsolidate(commits, knownHashesRef.current)}>
+            <Button appearance="primary" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)}>
               开始智能整合
             </Button>
           </div>
@@ -308,15 +342,7 @@ export function GitPage() {
               );
             })}
           </div>
-          <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
-            {done && <span className="muted">{done}</span>}
-            <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
-              {allSelected ? '取消全选' : '全选'}
-            </Button>
-            <Button appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
-              导入选中 ({checked.size})
-            </Button>
-          </div>
+          {ActionBar}
         </>
       )}
 
@@ -328,9 +354,9 @@ export function GitPage() {
               <div className="git-group-head">
                 <span className="git-repo-name">整合结果</span>
                 <span className="muted">
-                  {smartItems.filter((i) => !i.isExisting && !i.imported).length} 新增 · {smartItems.filter((i) => i.isExisting).length} 已有 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}
+                  {smartItems.filter((i) => !i.isExisting && !i.imported).length} 新增 · {smartItems.filter((i) => i.isExisting).length} 已有 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}（可手改）
                 </span>
-                <Button size="small" appearance="subtle" onClick={() => void runConsolidate(commits, knownHashesRef.current)} style={{ marginLeft: 'auto' }}>
+                <Button size="small" appearance="subtle" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)} style={{ marginLeft: 'auto' }}>
                   重新整合
                 </Button>
               </div>
@@ -344,7 +370,17 @@ export function GitPage() {
                     <span className="git-subject">{item.title}</span>
                     {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
                     <span className="git-smart-meta muted">{item.count} 提交 · {item.day}</span>
-                    <span className="git-hours">{formatHours(Math.round(item.hours * 60))}</span>
+                    <input
+                      type="number"
+                      className="sel git-hours-input"
+                      step={0.5}
+                      min={0}
+                      value={item.hours}
+                      disabled={dimmed}
+                      onChange={(e) => setItemHours(i, Math.max(0, Number(e.target.value) || 0))}
+                      title="估时（小时，可改）"
+                      style={{ width: 60 }}
+                    />
                     {item.imported && <span className="git-imported-badge">已导入</span>}
                     {item.isExisting && !item.imported && <span className="git-existing-badge">已有记录</span>}
                   </div>
@@ -352,17 +388,17 @@ export function GitPage() {
               })}
             </div>
           </div>
-          <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
-            {done && <span className="muted">{done}</span>}
-            <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
-              {allSelected ? '取消全选' : '全选'}
-            </Button>
-            <Button appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
-              导入选中 ({checked.size})
-            </Button>
-          </div>
+          {ActionBar}
         </>
       )}
+
+      <RangeAllocModal
+        open={rangeOpen}
+        selected={selectedForRange}
+        dailyCap={dailyCap}
+        onClose={() => setRangeOpen(false)}
+        onImport={(allocs) => void importAllocations(allocs)}
+      />
     </div>
   );
 }
