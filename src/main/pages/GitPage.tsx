@@ -268,20 +268,21 @@ export function GitPage() {
         </div>
       </div>
 
-      <div className="row gap-sm git-toolbar" style={{ marginBottom: 16, flexWrap: 'nowrap', overflow: 'auto' }}>
+      <div className="row gap-sm wrap" style={{ marginBottom: 12 }}>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === 'today' ? 'primary' : 'secondary'} onClick={() => setPeriod('today')}>今天</Button>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === '7d' ? 'primary' : 'secondary'} onClick={() => setPeriod('7d')}>最近7天</Button>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>
         <Button size="small" appearance={period === 'range' ? 'primary' : 'secondary'} onClick={() => setPeriod('range')}>自定义</Button>
-        {period === 'range' && (
-          <>
-            <input type="date" className="sel git-period-input" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
-            <span className="muted" style={{ fontSize: 12 }}>至</span>
-            <input type="date" className="sel git-period-input" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
-          </>
-        )}
-        <Button size="small" appearance="secondary" onClick={() => void scan()} disabled={loading}>重新扫描</Button>
+        <Button size="small" appearance="secondary" style={{ marginLeft: 'auto' }} onClick={() => void scan()} disabled={loading}>重新扫描</Button>
       </div>
+      {period === 'range' && (
+        <div className="row gap-sm" style={{ marginBottom: 16 }}>
+          <span className="muted" style={{ fontSize: 12 }}>起始</span>
+          <input type="date" className="sel git-period-input" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+          <span className="muted" style={{ fontSize: 12 }}>结束</span>
+          <input type="date" className="sel git-period-input" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+        </div>
+      )}
 
       {showSmart && !llmConfig.apiKey && llmConfig.kind !== 'claude-code' && (
         <div className="set-tip" style={{ marginBottom: 12 }}>⚠ 需在设置配置 LLM 才能智能整合。</div>
