@@ -1,12 +1,12 @@
 import type { ComponentType, SVGProps } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  AppsRegular,
   BranchRegular,
   CalendarMonthRegular,
   CalendarTodayRegular,
   SearchRegular,
   SettingsRegular,
+  TaskListLtrRegular,
   WeatherMoonRegular,
   WeatherSunnyRegular,
 } from '@fluentui/react-icons';
@@ -51,7 +51,7 @@ export function Sidebar() {
       </nav>
       <div className="rail-foot">
         <button className="rail-item" title="待办插件 (Alt+Shift+J)" onClick={() => void toggleWidget()}>
-          <AppsRegular className="rail-icon" />
+          <TaskListLtrRegular className="rail-icon" />
         </button>
         <button
           className="rail-item"
