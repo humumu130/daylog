@@ -15,13 +15,13 @@ const brand = {
 
 export const lightTheme: Theme = { ...webLightTheme, ...brand };
 
-// 深色模式：表面统一 RGB(30,31,41)=#1e1f29（应用底 + 卡片 background1 都覆盖，避免 Fluent 默认 #292929）
+// 深色模式：表面统一 #141414（RGB 20,20,20，取自用户取色图）
 const darkBg = {
-  colorNeutralBackground1: '#1e1f29',
-  colorNeutralBackground2: '#1e1f29',
-  colorNeutralBackground3: '#1e1f29',
-  colorSubtleBackground: '#1e1f29',
-  colorSubtleBackgroundHover: '#2a2b38',
-  colorSubtleBackgroundPressed: '#34354a',
+  colorNeutralBackground1: '#141414',
+  colorNeutralBackground2: '#141414',
+  colorNeutralBackground3: '#141414',
+  colorSubtleBackground: '#141414',
+  colorSubtleBackgroundHover: '#232323',
+  colorSubtleBackgroundPressed: '#2e2e2e',
 };
 export const darkTheme: Theme = { ...webDarkTheme, ...brand, ...darkBg };
