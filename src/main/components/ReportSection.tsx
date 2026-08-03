@@ -3,7 +3,7 @@ import { Button, Spinner } from '@fluentui/react-components';
 import { CopyRegular } from '@fluentui/react-icons';
 import * as db from '../../services/db';
 import { copyText } from '../../services/clipboard';
-import type { LlmConfig, Project, Report, ReportTemplate, WorkRecord } from '../../types/models';
+import type { LlmConfig, Project, Report, ReportTemplate } from '../../types/models';
 import { buildMonthSummary, generatePeriodReport, generateReport } from '../../services/llm';
 import { addDays, monthRange, todayYMD } from '../../utils/date';
 import { daysBetween } from '../../services/allocate';
@@ -17,7 +17,6 @@ interface Props {
   year: string;
   ym: string;
   quarterMonths: Record<number, [number, number]>;
-  records: WorkRecord[];
   projects: Project[];
 }
 
@@ -51,7 +50,7 @@ function toPlainText(md: string): string {
     .trim();
 }
 
-export function ReportSection({ period, title, reportType, llmConfig, templates, year, ym, quarterMonths, records, projects }: Props) {
+export function ReportSection({ period, title, reportType, llmConfig, templates, year, ym, quarterMonths, projects }: Props) {
   const [reports, setReports] = useState<Report[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -201,15 +200,7 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
 
       {editing ? (
         <textarea className="rpt-textarea" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="生成的内容或粘贴的文本" />
-      ) : reports.length === 0 ? (
-        <div className="rpt-empty">
-          {reportType === 'month' && records.length === 0
-            ? '该时段暂无记录。可直接粘贴外部报告文本后点「粘贴文本」保存。'
-            : reportType !== 'month' && llmConfig.kind !== 'claude-code' && !llmConfig.apiKey
-              ? '需在设置配置 LLM。或直接粘贴文本后保存。'
-              : `点击「生成${title}」自动生成，或直接粘贴外部文本保存。`}
-        </div>
-      ) : (
+      ) : reports.length === 0 ? null : (
         <div className="rpt-list">
           {reports.map((r) => (
             <div key={r.id} className="rpt-item">

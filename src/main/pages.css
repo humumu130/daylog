@@ -521,6 +521,7 @@ textarea.sel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
   gap: 16px;
+  margin-top: 18px;
   margin-bottom: 16px;
 }
 .cal-bottom-row { }
@@ -543,7 +544,7 @@ textarea.sel {
 }
 
 /* 年历紧凑 */
-.year-grid-compact { grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
+.year-grid-compact { grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .year-cell-sm { padding: 10px 8px; min-height: auto; }
 .year-cell-sm .year-cell-hours { font-size: 18px; margin: 2px 0; }
 

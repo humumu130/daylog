@@ -146,7 +146,7 @@ export function CalendarPage() {
                   <h3 className="cal-detail-title">{selectedMonth} 月报</h3>
                   <ReportSection period={selectedMonth} title="月报" reportType="month" llmConfig={settings.llm} templates={templates}
                     year={year} ym={selectedMonth} quarterMonths={quarterMonths}
-                    records={records.filter((r) => r.day.startsWith(selectedMonth))} projects={projects} />
+                    projects={projects} />
                 </>
               ) : (
                 <div className="empty" style={{ padding: 32, textAlign: 'center' }}>← 点击左侧月份</div>
@@ -161,23 +161,23 @@ export function CalendarPage() {
         {viewMode === 'month' ? (
           <div style={{ padding: '4px 0' }}>
             <ReportSection period={ym} title="月报" reportType="month" llmConfig={settings.llm} templates={templates}
-              year={year} ym={ym} quarterMonths={quarterMonths} records={records} projects={projects} />
+              year={year} ym={ym} quarterMonths={quarterMonths} projects={projects} />
           </div>
         ) : (
           <>
             <div style={{ padding: '4px 0 12px' }}>
               <ReportSection period={`${year}Q${selectedQuarter}`} title={`Q${selectedQuarter} 季报`} reportType="quarter"
                 llmConfig={settings.llm} templates={templates} year={year} ym={ym} quarterMonths={quarterMonths}
-                records={[]} projects={projects} />
+                projects={projects} />
             </div>
             <div style={{ padding: '4px 0 12px' }}>
               <ReportSection period={`${year}H1`} title="年中报" reportType="halfyear"
                 llmConfig={settings.llm} templates={templates} year={year} ym={ym} quarterMonths={quarterMonths}
-                records={[]} projects={projects} />
+                projects={projects} />
             </div>
             <div style={{ padding: '4px 0' }}>
               <ReportSection period={`${year}年报`} title="年报" reportType="year" llmConfig={settings.llm} templates={templates}
-                year={year} ym={ym} quarterMonths={quarterMonths} records={[]} projects={projects} />
+                year={year} ym={ym} quarterMonths={quarterMonths} projects={projects} />
             </div>
           </>
         )}
