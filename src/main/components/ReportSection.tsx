@@ -4,13 +4,14 @@ import { CopyRegular } from '@fluentui/react-icons';
 import * as db from '../../services/db';
 import { copyText } from '../../services/clipboard';
 import type { LlmConfig, Project, Report, ReportTemplate, WorkRecord } from '../../types/models';
-import { buildMonthSummary, generateAnnualReport, generateReport } from '../../services/llm';
+import { buildMonthSummary, generatePeriodReport, generateReport } from '../../services/llm';
 import { addDays, monthRange, todayYMD } from '../../utils/date';
+import { daysBetween } from '../../services/allocate';
 
 interface Props {
   period: string;
   title: string;
-  reportType: 'month' | 'quarter' | 'year';
+  reportType: 'month' | 'quarter' | 'halfyear' | 'year';
   llmConfig: LlmConfig;
   templates: ReportTemplate[];
   year: string;
@@ -87,6 +88,13 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
       })();
     } else if (reportType === 'year') {
       setFrom(`${year}-01-01`); setTo(`${year}-12-31`);
+    } else if (reportType === 'halfyear') {
+      // H1 = 1~6 月，H2 = 7~12 月
+      const h = Number(period.match(/H(\d)/)?.[1] ?? 1);
+      const s = h === 2 ? 7 : 1;
+      const e = h === 2 ? 12 : 6;
+      setFrom(`${year}-${String(s).padStart(2, '0')}-01`);
+      setTo(monthRange(`${year}-${String(e).padStart(2, '0')}`).to);
     } else {
       const q = Number(period.match(/Q(\d)/)?.[1] ?? 1);
       const [s, e] = quarterMonths[q] ?? [1, 12];
@@ -109,14 +117,33 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
         const user = (tpl?.body ? `【范例（请模仿风格）】\n${tpl.body}\n\n` : '') + `${summary}\n\n请据此撰写 ${label} 的工作月报。`;
         text = await generateReport(llmConfig, system, user);
       } else {
-        // 季报/年报：按自定义区间反推月份，聚合已保存的月报
+        // 季/年中/年报：优先用已存月报，月报未覆盖的漏天用日志补
         const months = monthsBetween(from, to);
-        const monthlyReports: { month: string; body: string }[] = [];
+        const monthReports: { month: string; body: string; from?: string; to?: string }[] = [];
         for (const mn of months) {
           const reps = await db.listReports(mn);
-          if (reps.length > 0) monthlyReports.push({ month: mn, body: reps[0].body });
+          if (reps.length > 0) {
+            const r = reps[0];
+            // 覆盖范围：有存就用存的范围，否则按该月自然月兜底
+            const rf = r.dateFrom ?? `${mn}-01`;
+            const rt = r.dateTo ?? monthRange(mn).to;
+            monthReports.push({ month: mn, body: r.body, from: rf, to: rt });
+          }
         }
-        text = await generateAnnualReport(monthlyReports, period, llmConfig, tpl?.body);
+        // 计算区间内未被任何月报覆盖的日期 → 漏天
+        const allDays = daysBetween(from, to, false);
+        const covered = new Set<string>();
+        for (const r of monthReports) for (const d of daysBetween(r.from!, r.to!, false)) covered.add(d);
+        const gapDays = allDays.filter((d) => !covered.has(d));
+        let gapSummary = '';
+        if (gapDays.length > 0) {
+          const recs = await db.listRecordsByRange(from, to);
+          const gapRecs = recs.filter((r) => gapDays.includes(r.day));
+          if (gapRecs.length > 0) {
+            gapSummary = buildMonthSummary(gapRecs, projects, `${gapDays[0]}~${gapDays[gapDays.length - 1]}（${gapDays.length} 天）`);
+          }
+        }
+        text = await generatePeriodReport(monthReports, gapSummary, period, reportType, llmConfig, tpl?.body);
       }
       setDraft(text);
       setEditing(true);

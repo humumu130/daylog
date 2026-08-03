@@ -75,6 +75,7 @@ export function CalendarPage() {
   }
 
   const selectedQuarter = selectedMonth ? Math.ceil(Number(selectedMonth.slice(5, 7)) / 3) : Math.ceil(Number(ym.slice(5, 7)) / 3);
+  const selectedHalf = (selectedMonth ? Number(selectedMonth.slice(5, 7)) : Number(ym.slice(5, 7))) <= 6 ? 1 : 2;
 
   return (
     <div>
@@ -167,6 +168,11 @@ export function CalendarPage() {
           <>
             <div style={{ padding: '4px 0 12px' }}>
               <ReportSection period={`${year}Q${selectedQuarter}`} title={`Q${selectedQuarter} 季报`} reportType="quarter"
+                llmConfig={settings.llm} templates={templates} year={year} ym={ym} quarterMonths={quarterMonths}
+                records={[]} projects={projects} />
+            </div>
+            <div style={{ padding: '4px 0 12px' }}>
+              <ReportSection period={`${year}H${selectedHalf}`} title={`${selectedHalf === 1 ? '上半年' : '下半年'} 年中报`} reportType="halfyear"
                 llmConfig={settings.llm} templates={templates} year={year} ym={ym} quarterMonths={quarterMonths}
                 records={[]} projects={projects} />
             </div>

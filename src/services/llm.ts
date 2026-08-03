@@ -159,24 +159,37 @@ export async function consolidateCommits(
 }
 
 /** 基于已保存的月报生成季度/年度总结 */
-export async function generateAnnualReport(
-  monthlyReports: { month: string; body: string }[],
+/**
+ * 生成 季/年中/年度 总结：
+ * - 优先用已保存的各月月报（用户打磨过的）；
+ * - 月报未覆盖到的日期（漏天）用对应日志补充；
+ * - 完全没有月报时，整段用日志生成（gapSummary 即全部日志）。
+ */
+export async function generatePeriodReport(
+  monthReports: { month: string; body: string; from?: string; to?: string }[],
+  gapSummary: string,
   period: string,
+  reportType: 'quarter' | 'halfyear' | 'year',
   config: LlmConfig,
   templateBody?: string,
 ): Promise<string> {
-  if (monthlyReports.length === 0) throw new Error('该时段没有已保存的月报，无法生成。请先用月报模式生成并保存各月月报，或直接粘贴外部月报文本。');
-  const isQuarter = /Q\d/.test(period);
-  const typeLabel = isQuarter ? '季度' : '年度';
-  const scopeLabel = isQuarter ? '该季度（3 个月）' : '全年（12 个月）';
+  if (monthReports.length === 0 && !gapSummary) {
+    throw new Error('该时段既没有月报也没有日志，无法生成。');
+  }
+  const typeLabel = reportType === 'quarter' ? '季度' : reportType === 'halfyear' ? '年中' : '年度';
+  const nextLabel = reportType === 'quarter' ? '下季度' : reportType === 'halfyear' ? '下半年' : '来年';
+  const organize = reportType === 'year' ? '按季度或主题' : '按主题';
   const system =
-    `你是${typeLabel}工作总结撰写助手。根据用户提供的${scopeLabel}各月工作月报，撰写一份${typeLabel}工作总结。` +
-    `要求：1) 按${isQuarter ? '主题' : '季度或主题'}组织，不要简单按月罗列；2) 提炼核心成果和亮点；` +
-    `3) 包含问题反思和${isQuarter ? '下季度' : '来年'}展望；4) 若有范例，严格模仿其格式和语气。只输出总结正文。`;
+    `你是${typeLabel}工作总结撰写助手。根据用户提供的各月工作月报${gapSummary ? '（及补充日志）' : ''}，撰写一份${typeLabel}工作总结。` +
+    `要求：1) ${organize}组织，不要简单按月罗列；2) 提炼核心成果和亮点；` +
+    `3) 包含问题反思和${nextLabel}展望；4) 若有范例，严格模仿其格式和语气。只输出总结正文。`;
+  const monthPart = monthReports.length > 0
+    ? monthReports.map((r) => `--- ${r.month} 月报${r.from && r.to ? `（${r.from}~${r.to}）` : ''} ---\n${r.body}`).join('\n\n')
+    : '';
   const user =
     (templateBody ? `【范例（请模仿风格）】\n${templateBody}\n\n` : '') +
-    `以下是 ${period} 各月的工作月报：\n\n` +
-    monthlyReports.map((r) => `--- ${r.month} ---\n${r.body}`).join('\n\n') +
+    monthPart +
+    (gapSummary ? `\n\n【补充日志（月报未覆盖的日期）】\n${gapSummary}\n` : '') +
     `\n\n请据此撰写 ${period} 的${typeLabel}工作总结。标题应包含"${period}"。`;
   return generateReport(config, system, user);
 }
