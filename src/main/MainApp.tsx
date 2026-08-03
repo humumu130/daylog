@@ -42,8 +42,8 @@ export function MainApp() {
       await setAutostart(s.autostart).catch(() => undefined);
       await Promise.all([fetchProjects(), fetchTasks()]);
       setReady(true);
-      // 启动时自动备份（不阻塞主流程）
-      void autoBackup().catch(() => undefined);
+      // 启动时自动备份（按设置：开关/份数/目录；不阻塞主流程）
+      void autoBackup(s).catch(() => undefined);
       // 下班提醒：每分钟检查（用 getter 实时读取最新设置）
       startReminder(() => useSettingsStore.getState().settings);
     })();

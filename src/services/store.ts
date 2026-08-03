@@ -21,6 +21,9 @@ export const SettingKeys = {
   remindTime: 'remindTime',
   remindMinMinutes: 'remindMinMinutes',
   dailyCapHours: 'dailyCapHours',
+  autoBackupEnabled: 'autoBackupEnabled',
+  autoBackupKeep: 'autoBackupKeep',
+  autoBackupDir: 'autoBackupDir',
 } as const;
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
@@ -50,10 +53,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   remindTime: '18:00',
   remindMinMinutes: 8 * 60,
   dailyCapHours: 8,
+  autoBackupEnabled: true,
+  autoBackupKeep: 5,
+  autoBackupDir: '',
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
@@ -66,6 +72,9 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<string>(SettingKeys.remindTime, DEFAULT_SETTINGS.remindTime),
     getSetting<number>(SettingKeys.remindMinMinutes, DEFAULT_SETTINGS.remindMinMinutes),
     getSetting<number>(SettingKeys.dailyCapHours, DEFAULT_SETTINGS.dailyCapHours),
+    getSetting<boolean>(SettingKeys.autoBackupEnabled, DEFAULT_SETTINGS.autoBackupEnabled),
+    getSetting<number>(SettingKeys.autoBackupKeep, DEFAULT_SETTINGS.autoBackupKeep),
+    getSetting<string>(SettingKeys.autoBackupDir, DEFAULT_SETTINGS.autoBackupDir),
   ]);
-  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir };
 }

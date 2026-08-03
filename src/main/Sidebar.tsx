@@ -7,6 +7,8 @@ import {
   CalendarTodayRegular,
   SearchRegular,
   SettingsRegular,
+  WeatherMoonRegular,
+  WeatherSunnyRegular,
 } from '@fluentui/react-icons';
 import { toggleWidget } from '../services/window';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -56,7 +58,7 @@ export function Sidebar() {
           title={isDark ? '切换浅色' : '切换深色'}
           onClick={() => void patch({ theme: isDark ? 'light' : 'dark' })}
         >
-          <span className="rail-emoji">Aa</span>
+          {isDark ? <WeatherSunnyRegular className="rail-icon" /> : <WeatherMoonRegular className="rail-icon" />}
         </button>
       </div>
     </aside>

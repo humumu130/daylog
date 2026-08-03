@@ -1,5 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
+import type { AppSettings } from '../types/models';
 
 
 interface BackupData {
@@ -101,10 +102,16 @@ export async function importFromFile(): Promise<{ imported: number }> {
 }
 
 /** 启动时自动备份（Rust 端写文件到 app data） */
-export async function autoBackup(): Promise<void> {
+/** 启动时自动备份（按设置：开关/份数/目录）。未传 settings 或关闭则跳过。 */
+export async function autoBackup(settings?: AppSettings): Promise<void> {
+  if (!settings || !settings.autoBackupEnabled) return;
   try {
     const json = await fetchAll();
-    await invoke('auto_backup_cmd', { data: json });
+    await invoke('auto_backup_cmd', {
+      data: json,
+      keep: settings.autoBackupKeep || null,
+      dir: settings.autoBackupDir.trim() || null,
+    });
   } catch (e) {
     // 备份失败不阻塞主流程，但留痕便于排查（不静默吞掉）
     console.error('[autoBackup] 备份失败：', e);

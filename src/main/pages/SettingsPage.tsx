@@ -219,9 +219,25 @@ export function SettingsPage() {
           </div>
         </div>
         <div className="set-row">
-          <div className="set-label"><span>自动备份</span><span className="subtle">每次启动自动备份到 %AppData%/com.worklog.app/backups/，保留最近 5 份</span></div>
-          <span className="muted" style={{ fontSize: 12 }}>✓ 已启用</span>
+          <div className="set-label"><span>启用自动备份</span><span className="subtle">每次启动自动备份一份数据</span></div>
+          <Switch checked={settings.autoBackupEnabled} onChange={(_, d) => void patch({ autoBackupEnabled: d.checked })} />
         </div>
+        {settings.autoBackupEnabled && (
+          <>
+            <div className="set-row">
+              <div className="set-label"><span>保留份数</span><span className="subtle">超出份数的旧备份自动清理</span></div>
+              <div className="row gap-sm">
+                <input type="number" className="sel" min={1} max={99} value={settings.autoBackupKeep}
+                  onChange={(e) => void patch({ autoBackupKeep: Math.max(1, Number(e.target.value) || 5) })} style={{ width: 64 }} />
+                <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>份</span>
+              </div>
+            </div>
+            <div className="set-row">
+              <div className="set-label"><span>备份目录</span><span className="subtle">留空 = 默认 %AppData%/com.worklog.app/backups/</span></div>
+              <Input value={settings.autoBackupDir} onChange={(_, d) => void patch({ autoBackupDir: d.value })} placeholder="留空 = 默认目录" className="grow" />
+            </div>
+          </>
+        )}
       </section>
 
       {/* 报告模板 */}

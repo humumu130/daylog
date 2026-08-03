@@ -42,7 +42,7 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [templateId, setTemplateId] = useState('');
-  // 自定义起止日期（默认对齐自然周期，可改成 25 号结账周期等）
+  // 自定义起止日期（默认对齐自然周期，可改成自定义统计周期）
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
@@ -76,7 +76,7 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
       const tpl = templates.find((t) => t.id === templateId);
       let text: string;
       if (reportType === 'month') {
-        // 按自定义区间取记录（支持 25 号结账等非自然月周期）
+        // 按自定义区间取记录（支持非自然月周期）
         const recs = await db.listRecordsByRange(from, to);
         const label = `${from} ~ ${to}`;
         const summary = buildMonthSummary(recs, projects, label);
@@ -136,12 +136,12 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
         </div>
       </div>
 
-      {/* 自定义起止日期：默认自然周期，可改成 25 号结账周期等 */}
+      {/* 自定义起止日期：默认自然周期，支持自定义统计周期 */}
       <div className="rpt-range" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
         <input type="date" className="sel" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 138 }} />
         <span className="muted">至</span>
         <input type="date" className="sel" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 138 }} />
-        <span className="muted" style={{ fontSize: 11 }}>可改起止日期（如 25 号结账周期）</span>
+        <span className="muted" style={{ fontSize: 11 }}>可改起止日期（如按 26 号到次月 25 号统计）</span>
       </div>
 
       {error && <div className="warn-soft" style={{ marginTop: 6 }}>{error}</div>}

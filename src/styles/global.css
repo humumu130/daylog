@@ -36,11 +36,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* FluentProvider 注入的设计令牌在该元素及其子树生效 */
+/* FluentProvider 注入的设计令牌在该元素及其子树生效。
+   把自定义变量映射到 Fluent 令牌，使其自动跟随明暗主题（:root 里的浅色值仅作 fallback）。 */
 .app-shell {
   min-height: 100%;
   background: var(--colorNeutralBackground2, #fafafa);
   color: var(--colorNeutralForeground1);
+  --app-bg: var(--colorNeutralBackground2);
+  --surface: var(--colorNeutralBackground1);
+  --text: var(--colorNeutralForeground1);
+  --text-1: var(--colorNeutralForeground1);
+  --text-2: var(--colorNeutralForeground2);
+  --text-3: var(--colorNeutralForeground3);
+  --accent: var(--colorBrandForeground1);
+  --accent-soft: var(--colorBrandBackground2);
+  --border: var(--colorNeutralStroke2);
+  --border-soft: var(--colorNeutralStroke3);
+  --shadow-soft: var(--shadow2);
+  --shadow-pop: var(--shadow28);
 }
 
 /* 无边框窗口拖拽区 */

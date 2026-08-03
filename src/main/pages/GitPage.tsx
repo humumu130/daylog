@@ -264,11 +264,8 @@ export function GitPage() {
         <Button size="small" appearance="secondary" onClick={() => void scan()} disabled={loading}>重新扫描</Button>
       </div>
 
-      {showSmart && (
-        <div className="set-tip" style={{ marginBottom: 12 }}>
-          智能整合：LLM 自动合并相关提交并估算耗时；整合在后台跑，切走再回来不重跑。工时可手改。
-          {!llmConfig.apiKey && llmConfig.kind !== 'claude-code' && ' ⚠ 需在设置配置 LLM。'}
-        </div>
+      {showSmart && !llmConfig.apiKey && llmConfig.kind !== 'claude-code' && (
+        <div className="set-tip" style={{ marginBottom: 12 }}>⚠ 需在设置配置 LLM 才能智能整合。</div>
       )}
 
       {errors.length > 0 && (

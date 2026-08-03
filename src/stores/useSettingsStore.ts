@@ -34,6 +34,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (partial.remindTime !== undefined) entries.push([SettingKeys.remindTime, partial.remindTime]);
     if (partial.remindMinMinutes !== undefined) entries.push([SettingKeys.remindMinMinutes, partial.remindMinMinutes]);
     if (partial.dailyCapHours !== undefined) entries.push([SettingKeys.dailyCapHours, partial.dailyCapHours]);
+    if (partial.autoBackupEnabled !== undefined) entries.push([SettingKeys.autoBackupEnabled, partial.autoBackupEnabled]);
+    if (partial.autoBackupKeep !== undefined) entries.push([SettingKeys.autoBackupKeep, partial.autoBackupKeep]);
+    if (partial.autoBackupDir !== undefined) entries.push([SettingKeys.autoBackupDir, partial.autoBackupDir]);
     await Promise.all(entries.map(([k, v]) => setSetting(k, v)));
   },
 }));
