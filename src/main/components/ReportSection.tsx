@@ -34,7 +34,7 @@ function monthsBetween(from: string, to: string): string[] {
   return out;
 }
 
-/** 把 Markdown 报告转成纯文本（去 #/*/`/列表标记 等），用于"复制纯文本" */
+/** 把 Markdown 报告转成纯文本（去掉井号、星号、反引号、列表标记等），用于"复制纯文本" */
 function toPlainText(md: string): string {
   return md
     .replace(/```[\s\S]*?```/g, '')
