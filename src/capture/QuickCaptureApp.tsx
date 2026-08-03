@@ -10,7 +10,7 @@ import { todayYMD } from '../utils/date';
 import { formatHours, halfOf } from '../utils/halfDay';
 import { createRecord } from '../services/db';
 import { autoDuration, commitAutoDuration } from '../services/duration';
-import { notifyChanged } from '../services/events';
+import { notifyChanged, onTheme } from '../services/events';
 import { hideQuickCapture } from '../services/window';
 import { parseEntries } from '../utils/parseEntry';
 import './quick-capture.css';
@@ -36,8 +36,10 @@ export function QuickCaptureApp() {
       if (f) inputRef.current?.focus();
       else void hideQuickCapture();
     });
+    const ut = onTheme((t) => setTheme(t === 'dark' ? darkTheme : lightTheme));
     return () => {
       void p.then((fn) => fn());
+      void ut.then((fn) => fn());
     };
   }, [loadSettings, fetchProjects, fetchTasks]);
 

@@ -8,7 +8,7 @@ import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
 import { useRecordsStore } from '../stores/useRecordsStore';
 import { createRecord } from '../services/db';
-import { notifyChanged } from '../services/events';
+import { notifyChanged, onTheme } from '../services/events';
 import { hideWidget } from '../services/window';
 import { autoDuration, commitAutoDuration } from '../services/duration';
 import { todayYMD } from '../utils/date';
@@ -58,8 +58,10 @@ export function WidgetApp() {
     const p = w.onFocusChanged(({ payload: f }) => {
       if (f) inputRef.current?.focus();
     });
+    const ut = onTheme((t) => setTheme(t === 'dark' ? darkTheme : lightTheme));
     return () => {
       void p.then((fn) => fn());
+      void ut.then((fn) => fn());
     };
   }, [loadSettings, fetchTasks, fetchProjects, setRange]);
 

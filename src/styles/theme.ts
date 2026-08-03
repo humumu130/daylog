@@ -14,4 +14,13 @@ const brand = {
 };
 
 export const lightTheme: Theme = { ...webLightTheme, ...brand };
-export const darkTheme: Theme = { ...webDarkTheme, ...brand };
+
+// 深色模式：主背景用 #1e1f22（卡片 background1 保持 Fluent 默认略浅，保留层次）
+const darkBg = {
+  colorNeutralBackground2: '#1e1f22',
+  colorNeutralBackground3: '#1e1f22',
+  colorSubtleBackground: '#1e1f22',
+  colorSubtleBackgroundHover: '#2a2b2e',
+  colorSubtleBackgroundPressed: '#333437',
+};
+export const darkTheme: Theme = { ...webDarkTheme, ...brand, ...darkBg };

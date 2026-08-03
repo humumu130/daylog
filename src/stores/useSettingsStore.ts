@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { loadSettings, setSetting, SettingKeys } from '../services/store';
 import { DEFAULT_SETTINGS } from '../services/store';
+import { notifyTheme } from '../services/events';
 import type { AppSettings } from '../types/models';
 
 interface SettingsState {
@@ -38,5 +39,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (partial.autoBackupKeep !== undefined) entries.push([SettingKeys.autoBackupKeep, partial.autoBackupKeep]);
     if (partial.autoBackupDir !== undefined) entries.push([SettingKeys.autoBackupDir, partial.autoBackupDir]);
     await Promise.all(entries.map(([k, v]) => setSetting(k, v)));
+    // 主题变更：广播给其它窗口（待办插件/快速记录）跟随切换
+    if (partial.theme !== undefined) void notifyTheme(partial.theme);
   },
 }));
