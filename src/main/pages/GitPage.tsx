@@ -231,10 +231,10 @@ export function GitPage() {
       <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
         {allSelected ? '取消全选' : '全选'}
       </Button>
-      <Button size="small" onClick={() => setRangeOpen(true)} disabled={checked.size === 0}>
+      <Button size="small" appearance="secondary" onClick={() => setRangeOpen(true)} disabled={checked.size === 0}>
         分配到区间…
       </Button>
-      <Button appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
+      <Button size="small" appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
         导入选中 ({checked.size})
       </Button>
     </div>
@@ -245,7 +245,7 @@ export function GitPage() {
       <div className="page-head">
         <div className="left">
           <h2 className="section-title">Git 扫描</h2>
-          <span className="muted">配置仓库的提交 → 审核 → 导入</span>
+          <span className="muted">从 Git 提交导入工作日志</span>
         </div>
         <div className="row gap-sm wrap">
           <div className="seg">
@@ -261,7 +261,7 @@ export function GitPage() {
         <Button size="small" appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>
         <input type="month" className={`sel git-month${period === 'month' ? ' is-active' : ''}`} value={pickMonth}
           onChange={(e) => { setPickMonth(e.target.value); setPeriod('month'); }} style={{ width: 'auto' }} />
-        <Button onClick={() => void scan()} disabled={loading}>重新扫描</Button>
+        <Button size="small" appearance="secondary" onClick={() => void scan()} disabled={loading}>重新扫描</Button>
       </div>
 
       {showSmart && (

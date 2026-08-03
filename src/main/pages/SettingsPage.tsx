@@ -360,9 +360,9 @@ export function SettingsPage() {
             <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
             <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔）" style={{ width: 220 }} />
           </div>
-          <div className="row gap-sm">
-            <textarea className="sel" value={newRepoPaths} onChange={(e) => setNewRepoPaths(e.target.value)}
-              placeholder="关联仓库路径（可选，每行一个）：如 D:\\code\\pcs-user" rows={2} style={{ flex: 1 }} />
+          <textarea className="sel" value={newRepoPaths} onChange={(e) => setNewRepoPaths(e.target.value)}
+            placeholder="关联仓库路径（可选，每行一个，与本项目一起建好）：如 D:\\code\\pcs-user" rows={2} style={{ width: '100%' }} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
           </div>
         </div>
