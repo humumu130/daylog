@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, FluentProvider, Input } from '@fluentui/react-components';
 import { darkTheme, lightTheme } from '../styles/theme';
-import { AddRegular, DeleteRegular, DismissRegular, TaskListLtrRegular } from '@fluentui/react-icons';
+import { AddRegular, DeleteRegular, DismissRegular, PinRegular, TaskListLtrRegular } from '@fluentui/react-icons';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -46,6 +46,7 @@ export function WidgetApp() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState('');
+  const [pinned, setPinned] = useState(true); // 置顶（始终在最前）
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,6 +81,12 @@ export function WidgetApp() {
   function flashMsg(m: string) {
     setFlash(m);
     setTimeout(() => setFlash(''), 1400);
+  }
+
+  async function togglePin() {
+    const next = !pinned;
+    setPinned(next);
+    try { await getCurrentWebviewWindow().setAlwaysOnTop(next); } catch { /* ignore */ }
   }
 
   async function addTodo() {
@@ -148,6 +155,14 @@ export function WidgetApp() {
           <TaskListLtrRegular className="widget-title-icon" /> 待办
         </span>
         <span className="widget-count">{active.length}</span>
+        <Button
+          appearance="subtle"
+          size="small"
+          icon={<PinRegular />}
+          className={`widget-pin${pinned ? ' active' : ''}`}
+          title={pinned ? '取消置顶' : '置顶（始终在最前）'}
+          onClick={() => void togglePin()}
+        />
         <Button appearance="subtle" size="small" icon={<DismissRegular />} onClick={() => void hideWidget()} />
       </div>
 

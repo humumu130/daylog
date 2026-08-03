@@ -14,7 +14,8 @@ import { useTasksStore } from '../stores/useTasksStore';
 import { setAutostart } from '../services/autostart';
 import { onChanged } from '../services/events';
 import { registerHotkey, unregisterHotkey } from '../services/hotkey';
-import { showQuickCapture, toggleWidget } from '../services/window';
+import { toggleMain, toggleQuickCapture, toggleWidget } from '../services/window';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useRecordsStore } from '../stores/useRecordsStore';
 import { autoBackup } from '../services/backup';
 import { useUiStore } from '../stores/useUiStore';
@@ -48,10 +49,10 @@ export function MainApp() {
     })();
   }, [load, fetchProjects, fetchTasks]);
 
-  // 快速记录热键
+  // 快速记录热键（再次按下可关闭）
   useEffect(() => {
     if (!ready) return;
-    void registerHotkey('capture', settings.hotkey, () => void showQuickCapture());
+    void registerHotkey('capture', settings.hotkey, () => void toggleQuickCapture());
     return () => {
       void unregisterHotkey('capture');
     };
@@ -65,6 +66,26 @@ export function MainApp() {
       void unregisterHotkey('todo');
     };
   }, [settings.todoHotkey, ready]);
+
+  // 主窗口呼出/收起热键
+  useEffect(() => {
+    if (!ready) return;
+    void registerHotkey('main', settings.mainHotkey, () => void toggleMain());
+    return () => {
+      void unregisterHotkey('main');
+    };
+  }, [settings.mainHotkey, ready]);
+
+  // 关闭主窗口（标题栏 X / Alt+F4）→ 收进托盘，而非退出（退出走托盘菜单「退出」）
+  useEffect(() => {
+    const w = getCurrentWebviewWindow();
+    let unlisten: (() => void) | undefined;
+    w.onCloseRequested((e) => {
+      e.preventDefault();
+      void w.hide();
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, []);
 
   // 跨窗口数据同步：捕获面板/待办插件改动后自动刷新
   useEffect(() => {

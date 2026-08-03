@@ -11,6 +11,7 @@ async function store() {
 export const SettingKeys = {
   hotkey: 'hotkey',
   todoHotkey: 'todoHotkey',
+  mainHotkey: 'mainHotkey',
   theme: 'theme',
   boundaries: 'boundaries',
   llm: 'llm',
@@ -33,6 +34,7 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
 export const DEFAULT_SETTINGS: AppSettings = {
   hotkey: 'Alt+Shift+L',
   todoHotkey: 'Alt+Shift+J',
+  mainHotkey: 'Alt+Shift+M',
   theme: 'light',
   boundaries: DEFAULT_BOUNDARIES,
   llm: {
@@ -49,9 +51,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
+    getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
     getSetting<Theme>(SettingKeys.theme, DEFAULT_SETTINGS.theme),
     getSetting<HalfBoundaries>(SettingKeys.boundaries, DEFAULT_SETTINGS.boundaries),
     getSetting<LlmConfig>(SettingKeys.llm, DEFAULT_SETTINGS.llm),
@@ -61,5 +64,5 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<string>(SettingKeys.remindTime, DEFAULT_SETTINGS.remindTime),
     getSetting<number>(SettingKeys.remindMinMinutes, DEFAULT_SETTINGS.remindMinMinutes),
   ]);
-  return { hotkey, todoHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes };
 }

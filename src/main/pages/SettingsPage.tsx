@@ -124,6 +124,10 @@ export function SettingsPage() {
           <div className="set-label"><span>待办插件热键</span><span className="subtle">显示/隐藏桌面待办插件</span></div>
           <HotkeyField value={settings.todoHotkey} onCommit={(a) => { void patch({ todoHotkey: a }); flash('待办插件热键：' + a); }} />
         </div>
+        <div className="set-row">
+          <div className="set-label"><span>主界面热键</span><span className="subtle">呼出/收起主窗口（收起后驻留托盘）</span></div>
+          <HotkeyField value={settings.mainHotkey} onCommit={(a) => { void patch({ mainHotkey: a }); flash('主界面热键：' + a); }} />
+        </div>
         <div className="set-row"><div className="set-label"><span>深色模式</span></div>
           <Switch checked={settings.theme === 'dark'} onChange={(_, d) => void patch({ theme: d.checked ? 'dark' : 'light' })} />
         </div>

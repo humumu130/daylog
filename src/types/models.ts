@@ -87,6 +87,8 @@ export interface GitRepo {
 export interface AppSettings {
   hotkey: string;
   todoHotkey: string;
+  /** 显示/隐藏主窗口的热键 */
+  mainHotkey: string;
   theme: Theme;
   boundaries: HalfBoundaries;
   llm: LlmConfig;

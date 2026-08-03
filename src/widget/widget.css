@@ -17,6 +17,10 @@
   font-weight: 700;
   font-size: 13px;
 }
+.widget-pin.active {
+  color: var(--colorBrandForeground1) !important;
+  background: var(--colorBrandBackground2) !important;
+}
 .widget-count {
   font-size: 11px;
   background: var(--colorBrandBackground2);
