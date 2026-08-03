@@ -440,7 +440,7 @@ function ReportTemplateSection() {
         <div className="modal-mask" onClick={() => setTplOpen(false)}>
           <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="set-h">{editingId ? '编辑模板' : '新建模板'}</h3>
-            <input className="tpl-name-input" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="模板名（如：给领导的月报）" />
+            <input className="tpl-name-input" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="模板名" />
             <textarea className="sel" style={{ minHeight: 200, resize: 'vertical' }} value={tplBody} onChange={(e) => setTplBody(e.target.value)}
               placeholder="粘贴一份你满意的报告作为范例，AI 会模仿其格式和语气" />
             <div className="row gap-sm" style={{ justifyContent: 'flex-end' }}>
