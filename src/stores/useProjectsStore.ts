@@ -6,7 +6,7 @@ interface ProjectsState {
   projects: Project[];
   loading: boolean;
   fetch: () => Promise<void>;
-  create: (input: db.ProjectInput) => Promise<void>;
+  create: (input: db.ProjectInput) => Promise<string>;
   update: (id: string, input: db.ProjectInput) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
@@ -24,8 +24,9 @@ export const useProjectsStore = create<ProjectsState>()((set, get) => ({
     }
   },
   create: async (input) => {
-    await db.createProject(input);
+    const id = await db.createProject(input);
     await get().fetch();
+    return id;
   },
   update: async (id, input) => {
     await db.updateProject(id, input);

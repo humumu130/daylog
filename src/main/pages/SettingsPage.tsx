@@ -25,6 +25,7 @@ export function SettingsPage() {
   const [pname, setPname] = useState('');
   const [pcolor, setPcolor] = useState('#0078d4');
   const [pkw, setPkw] = useState('');
+  const [newRepoPaths, setNewRepoPaths] = useState(''); // 新建项目时一并关联的仓库路径（每行一个，可选）
 
   // 展开/折叠
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -46,10 +47,20 @@ export function SettingsPage() {
   async function toggleAutostart(on: boolean) { await patch({ autostart: on }); await setAutostart(on).catch(() => undefined); }
 
   async function addProject() {
-    if (!pname.trim()) return;
-    await createProject({ name: pname.trim(), color: pcolor, keywords: pkw.split(',').map((s) => s.trim()).filter(Boolean), isActive: true, sortOrder: projects.length });
-    flash('已添加项目');
-    setPname(''); setPkw('');
+    const name = pname.trim();
+    if (!name) return;
+    const pid = await createProject({ name, color: pcolor, keywords: pkw.split(',').map((s) => s.trim()).filter(Boolean), isActive: true, sortOrder: projects.length });
+    // 可选：一并关联仓库（每行一个路径），点「新建项目」时一起建好
+    const paths = newRepoPaths.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (paths.length > 0) {
+      const newRepos: GitRepo[] = paths.map((p) => ({ id: crypto.randomUUID(), path: p, projectId: pid, author: '' }));
+      await patch({ repos: [...settings.repos, ...newRepos] });
+      flash(`已添加项目，并关联 ${newRepos.length} 个仓库`);
+      setExpanded((prev) => new Set(prev).add(pid));
+    } else {
+      flash('已添加项目');
+    }
+    setPname(''); setPkw(''); setNewRepoPaths('');
   }
 
   async function removeRepo(id: string) { await patch({ repos: settings.repos.filter((r) => r.id !== id) }); }
@@ -342,12 +353,18 @@ export function SettingsPage() {
           )}
         </div>
 
-        {/* 新建项目（放最下面，列表末尾追加） */}
-        <div className="row gap-sm proj-add" style={{ marginTop: 12 }}>
-          <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名（必填）" className="grow" />
-          <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
-          <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔）" style={{ width: 220 }} />
-          <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
+        {/* 新建项目（放最下面）：项目信息 + 可选仓库路径，点「新建项目」一次建好 */}
+        <div className="proj-add" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="row gap-sm">
+            <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名（必填）" className="grow" />
+            <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
+            <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔）" style={{ width: 220 }} />
+          </div>
+          <div className="row gap-sm">
+            <textarea className="sel" value={newRepoPaths} onChange={(e) => setNewRepoPaths(e.target.value)}
+              placeholder="关联仓库路径（可选，每行一个）：如 D:\\code\\pcs-user" rows={2} style={{ flex: 1 }} />
+            <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
+          </div>
         </div>
       </section>
 
