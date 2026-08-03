@@ -149,9 +149,9 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
             </>
           ) : (
             <>
-              {reports.length > 0 && latest && (
-                <Button size="small" appearance="subtle" onClick={() => { setDraft(latest.body); setEditing(true); }}>编辑</Button>
-              )}
+              <Button size="small" appearance="subtle" onClick={() => { setDraft(latest?.body ?? ''); setEditing(true); }}>
+                {reports.length > 0 ? '编辑' : '粘贴文本'}
+              </Button>
               <Button size="small" appearance="subtle" icon={<CopyRegular />} style={{ minWidth: 108 }} onClick={() => void copyText(latest?.body ?? '')} disabled={reports.length === 0} title="复制 Markdown 原文">复制 Markdown</Button>
               <Button size="small" appearance="subtle" icon={<CopyRegular />} style={{ minWidth: 108 }} onClick={() => void copyText(toPlainText(latest?.body ?? ''))} disabled={reports.length === 0} title="复制纯文本（去掉格式）">复制纯文本</Button>
               <Button size="small" appearance="primary" style={{ minWidth: 100 }} onClick={() => void generate()} disabled={!llmConfig.apiKey && llmConfig.kind !== 'claude-code'}>
@@ -177,7 +177,7 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
       ) : reports.length === 0 ? (
         <div className="rpt-empty">
           {reportType === 'month' && records.length === 0
-            ? '该时段暂无记录。可直接粘贴外部月报文本后点「编辑」保存。'
+            ? '该时段暂无记录。可直接粘贴外部报告文本后点「粘贴文本」保存。'
             : reportType !== 'month' && llmConfig.kind !== 'claude-code' && !llmConfig.apiKey
               ? '需在设置配置 LLM。或直接粘贴文本后保存。'
               : `点击「生成${title}」自动生成，或直接粘贴外部文本保存。`}

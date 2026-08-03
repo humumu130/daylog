@@ -543,7 +543,7 @@ textarea.sel {
 }
 
 /* 年历紧凑 */
-.year-grid-compact { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.year-grid-compact { grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
 .year-cell-sm { padding: 10px 8px; min-height: auto; }
 .year-cell-sm .year-cell-hours { font-size: 18px; margin: 2px 0; }
 
