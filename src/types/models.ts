@@ -60,6 +60,9 @@ export interface Report {
   provider: string;
   model: string;
   createdAt: number;
+  /** 报告覆盖的起止日期（YYYY-MM-DD），用于季/年报检测漏天、月报默认起始 */
+  dateFrom: string | null;
+  dateTo: string | null;
 }
 
 export interface HalfBoundaries {

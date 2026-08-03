@@ -304,6 +304,8 @@ interface ReportRow {
   provider: string;
   model: string;
   created_at: number;
+  date_from: string | null;
+  date_to: string | null;
 }
 function mapReport(r: ReportRow): Report {
   return {
@@ -314,6 +316,8 @@ function mapReport(r: ReportRow): Report {
     provider: r.provider,
     model: r.model,
     createdAt: r.created_at,
+    dateFrom: r.date_from,
+    dateTo: r.date_to,
   };
 }
 export async function listReports(month: string): Promise<Report[]> {
@@ -324,11 +328,19 @@ export async function listAllReports(): Promise<Report[]> {
   const rows = await (await db()).select<ReportRow[]>('SELECT * FROM reports ORDER BY created_at DESC');
   return rows.map(mapReport);
 }
-export async function saveReport(r: { month: string; templateId: string | null; body: string; provider: string; model: string }): Promise<string> {
+/** 取 date_to 最大（覆盖到最晚）的那份报告的起止日期，用于月报默认起始 = 其结束日+1 */
+export async function getLatestReportRange(): Promise<{ from: string | null; to: string | null } | null> {
+  const rows = await (await db()).select<ReportRow[]>(
+    'SELECT * FROM reports WHERE date_to IS NOT NULL ORDER BY date_to DESC LIMIT 1',
+  );
+  if (rows.length === 0) return null;
+  return { from: rows[0].date_from, to: rows[0].date_to };
+}
+export async function saveReport(r: { month: string; templateId: string | null; body: string; provider: string; model: string; dateFrom?: string | null; dateTo?: string | null }): Promise<string> {
   const id = crypto.randomUUID();
   await (await db()).execute(
-    'INSERT INTO reports (id, month, template_id, body, provider, model, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-    [id, r.month, r.templateId, r.body, r.provider, r.model, Date.now()],
+    'INSERT INTO reports (id, month, template_id, body, provider, model, created_at, date_from, date_to) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [id, r.month, r.templateId, r.body, r.provider, r.model, Date.now(), r.dateFrom ?? null, r.dateTo ?? null],
   );
   return id;
 }

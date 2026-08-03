@@ -5,7 +5,7 @@ import * as db from '../../services/db';
 import { copyText } from '../../services/clipboard';
 import type { LlmConfig, Project, Report, ReportTemplate, WorkRecord } from '../../types/models';
 import { buildMonthSummary, generateAnnualReport, generateReport } from '../../services/llm';
-import { monthRange } from '../../utils/date';
+import { addDays, monthRange, todayYMD } from '../../utils/date';
 
 interface Props {
   period: string;
@@ -58,8 +58,17 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
   // 切换周期时，把起止日期重置为该周期自然范围
   useEffect(() => {
     if (reportType === 'month') {
-      const r = monthRange(ym);
-      setFrom(r.from); setTo(r.to);
+      // 月报默认：起始 = 上一份月报结束日的后一天，结束 = 今天；没有历史则用自然月
+      void (async () => {
+        const latest = await db.getLatestReportRange().catch(() => null);
+        if (latest?.to) {
+          setFrom(addDays(latest.to, 1));
+          setTo(todayYMD());
+        } else {
+          const r = monthRange(ym);
+          setFrom(r.from); setTo(r.to);
+        }
+      })();
     } else if (reportType === 'year') {
       setFrom(`${year}-01-01`); setTo(`${year}-12-31`);
     } else {
@@ -102,7 +111,7 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
 
   async function save() {
     if (!draft.trim()) return;
-    await db.saveReport({ month: period, templateId: templateId || null, body: draft, provider: llmConfig.kind, model: llmConfig.model ?? '' });
+    await db.saveReport({ month: period, templateId: templateId || null, body: draft, provider: llmConfig.kind, model: llmConfig.model ?? '', dateFrom: from, dateTo: to });
     setReports(await db.listReports(period));
     setEditing(false); setDraft('');
   }
