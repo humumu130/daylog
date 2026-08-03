@@ -34,6 +34,22 @@ function monthsBetween(from: string, to: string): string[] {
   return out;
 }
 
+/** 把 Markdown 报告转成纯文本（去 #/*/`/列表标记 等），用于"复制纯文本" */
+function toPlainText(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '· ')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^>\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export function ReportSection({ period, title, reportType, llmConfig, templates, year, ym, quarterMonths, records, projects }: Props) {
   const [reports, setReports] = useState<Report[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -136,8 +152,9 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
               {reports.length > 0 && latest && (
                 <Button size="small" appearance="subtle" onClick={() => { setDraft(latest.body); setEditing(true); }}>编辑</Button>
               )}
-              <Button size="small" icon={<CopyRegular />} onClick={() => void copyText(latest?.body ?? '')} disabled={reports.length === 0}>复制</Button>
-              <Button size="small" appearance="primary" onClick={() => void generate()} disabled={!llmConfig.apiKey && llmConfig.kind !== 'claude-code'}>
+              <Button size="small" appearance="subtle" icon={<CopyRegular />} style={{ minWidth: 108 }} onClick={() => void copyText(latest?.body ?? '')} disabled={reports.length === 0} title="复制 Markdown 原文">复制 Markdown</Button>
+              <Button size="small" appearance="subtle" icon={<CopyRegular />} style={{ minWidth: 108 }} onClick={() => void copyText(toPlainText(latest?.body ?? ''))} disabled={reports.length === 0} title="复制纯文本（去掉格式）">复制纯文本</Button>
+              <Button size="small" appearance="primary" style={{ minWidth: 100 }} onClick={() => void generate()} disabled={!llmConfig.apiKey && llmConfig.kind !== 'claude-code'}>
                 {reports.length > 0 ? '重新生成' : `生成${title}`}
               </Button>
             </>
