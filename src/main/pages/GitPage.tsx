@@ -6,15 +6,20 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { signatureOf, useGitStore } from '../../stores/useGitStore';
 import { scanRepos, type GitCommit } from '../../services/git';
 import { notifyChanged } from '../../services/events';
-import { currentYM } from '../../utils/date';
 import { formatHours } from '../../utils/halfDay';
 import * as db from '../../services/db';
 import { RangeAllocModal, type SelectedItem } from '../components/RangeAllocModal';
 
-type Period = 'today' | '7d' | '30d' | 'month';
+type Period = 'today' | '7d' | '30d' | 'range';
 type AnnotatedCommit = GitCommit & { imported: boolean };
 
 const RAW_DEFAULT_MIN = 30;
+
+/** 去掉 conventional-commit 前缀，如 fix(report): / feat: / chore(api)!:  */
+function cleanSubject(s: string): string {
+  const t = s.replace(/^(fixup! |squash! )?(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?(!)?:\s*/i, '').trim();
+  return t || s;
+}
 
 export function GitPage() {
   const repos = useSettingsStore((s) => s.settings.repos);
@@ -34,10 +39,12 @@ export function GitPage() {
   const setItemHours = useGitStore((s) => s.setItemHours);
 
   const [period, setPeriod] = useState<Period>('30d');
-  const [pickMonth, setPickMonth] = useState(currentYM());
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
   const [commits, setCommits] = useState<AnnotatedCommit[]>([]);
   const [errors, setErrors] = useState<{ path: string; error: string }[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [expandedSmart, setExpandedSmart] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState('');
   const [rangeOpen, setRangeOpen] = useState(false);
@@ -53,10 +60,8 @@ export function GitPage() {
     if (period === 'today') return { since: 'today', until: undefined as string | undefined };
     if (period === '7d') return { since: '7 days ago', until: undefined };
     if (period === '30d') return { since: '30 days ago', until: undefined };
-    const [y, m] = pickMonth.split('-').map(Number);
-    const next = new Date(y, m, 1);
-    return { since: `${pickMonth}-01`, until: `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01` };
-  }, [period, pickMonth]);
+    return { since: rangeFrom, until: rangeTo || undefined }; // 自定义区间
+  }, [period, rangeFrom, rangeTo]);
 
   async function loadKnownHashes() {
     const all = await db.listRecordsByRange('2000-01-01', '2999-12-31');
@@ -93,7 +98,7 @@ export function GitPage() {
     if (repos.length) void scan();
     else setCommits([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repos.length, period, pickMonth]);
+  }, [repos.length, period, rangeFrom, rangeTo]);
 
   // 首次进入 smart 模式且没整合过 → 自动整合一次（之后切走回来不重跑；提交变化则提示）
   useEffect(() => {
@@ -122,6 +127,14 @@ export function GitPage() {
 
   function toggle(key: string) {
     setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+  function toggleSmart(key: string) {
+    setExpandedSmart((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -157,7 +170,7 @@ export function GitPage() {
       const sel = commits.filter((c) => checked.has(`r${c.hash}${c.repoId}`));
       for (const c of sel) {
         await create({
-          content: c.subject, durationMin: RAW_DEFAULT_MIN, day: c.date, half: 'morning',
+          content: cleanSubject(c.subject), durationMin: RAW_DEFAULT_MIN, day: c.date, half: 'morning',
           taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash },
         });
         count++;
@@ -201,7 +214,7 @@ export function GitPage() {
         const c = commits.find((cc) => `r${cc.hash}${cc.repoId}` === a.key);
         if (!c) continue;
         await create({
-          content: c.subject, durationMin: Math.round(a.hours * 60), day: a.day, half: 'morning',
+          content: cleanSubject(c.subject), durationMin: Math.round(a.hours * 60), day: a.day, half: 'morning',
           taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash },
         });
         count++;
@@ -255,12 +268,18 @@ export function GitPage() {
         </div>
       </div>
 
-      <div className="row gap-sm wrap" style={{ marginBottom: 16 }}>
+      <div className="row gap-sm" style={{ marginBottom: 16, flexWrap: 'nowrap', overflow: 'auto' }}>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === 'today' ? 'primary' : 'secondary'} onClick={() => setPeriod('today')}>今天</Button>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === '7d' ? 'primary' : 'secondary'} onClick={() => setPeriod('7d')}>最近7天</Button>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>
-        <input type="month" className={`sel git-month${period === 'month' ? ' is-active' : ''}`} value={pickMonth}
-          onChange={(e) => { setPickMonth(e.target.value); setPeriod('month'); }} style={{ width: 'auto' }} />
+        <Button size="small" appearance={period === 'range' ? 'primary' : 'secondary'} onClick={() => setPeriod('range')}>自定义</Button>
+        {period === 'range' && (
+          <>
+            <input type="date" className="sel git-period-input" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+            <span className="muted" style={{ fontSize: 12 }}>至</span>
+            <input type="date" className="sel git-period-input" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+          </>
+        )}
         <Button size="small" appearance="secondary" onClick={() => void scan()} disabled={loading}>重新扫描</Button>
       </div>
 
@@ -333,7 +352,8 @@ export function GitPage() {
                       <div key={key} className={`git-row${c.imported ? ' imported' : ''}`}>
                         <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} />
                         <span className="git-hash">{c.hash}</span>
-                        <span className="git-subject">{c.subject}</span>
+                        <span className="git-subject">{cleanSubject(c.subject)}</span>
+                        {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
                         {c.imported && <span className="git-imported-badge">已导入</span>}
                         <span className="muted git-date">{c.date}</span>
                       </div>
@@ -365,25 +385,42 @@ export function GitPage() {
                 const key = `s${i}`;
                 const proj = item.projectId ? projects.find((p) => p.id === item.projectId) : undefined;
                 const dimmed = item.imported || item.isExisting;
+                const expanded = expandedSmart.has(key);
+                const bundled = commits.filter((c) => item.hashes.includes(c.hash));
                 return (
-                  <div key={key} className={`git-row${dimmed ? ' imported' : ''}`}>
-                    <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} />
-                    <span className="git-subject">{item.title}</span>
-                    {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
-                    <span className="git-smart-meta muted">{item.count} 提交 · {item.day}</span>
-                    <input
-                      type="number"
-                      className="sel git-hours-input"
-                      step={0.5}
-                      min={0}
-                      value={item.hours}
-                      disabled={dimmed}
-                      onChange={(e) => setItemHours(i, Math.max(0, Number(e.target.value) || 0))}
-                      title="估时（小时，可改）"
-                      style={{ width: 60 }}
-                    />
-                    {item.imported && <span className="git-imported-badge">已导入</span>}
-                    {item.isExisting && !item.imported && <span className="git-existing-badge">已有记录</span>}
+                  <div key={key}>
+                    <div className={`git-row${dimmed ? ' imported' : ''}`}>
+                      <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} />
+                      <span className="git-subject">{item.title}</span>
+                      {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
+                      <span className="git-smart-meta muted" style={{ cursor: bundled.length ? 'pointer' : 'default' }} onClick={() => bundled.length && toggleSmart(key)} title={bundled.length ? '点击展开原始提交' : ''}>
+                        {item.count} 提交 · {item.day}{bundled.length ? (expanded ? ' ▾' : ' ▸') : ''}
+                      </span>
+                      <input
+                        type="number"
+                        className="sel git-hours-input"
+                        step={0.5}
+                        min={0}
+                        value={item.hours}
+                        disabled={dimmed}
+                        onChange={(e) => setItemHours(i, Math.max(0, Number(e.target.value) || 0))}
+                        title="估时（小时，可改）"
+                        style={{ width: 60 }}
+                      />
+                      {item.imported && <span className="git-imported-badge">已导入</span>}
+                      {item.isExisting && !item.imported && <span className="git-existing-badge">已有记录</span>}
+                    </div>
+                    {expanded && bundled.length > 0 && (
+                      <div className="git-smart-detail">
+                        {bundled.map((c) => (
+                          <div key={c.hash} className="git-smart-commit">
+                            <span className="git-hash">{c.hash}</span>
+                            <span className="muted">{c.date}</span>
+                            <span>{cleanSubject(c.subject)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
