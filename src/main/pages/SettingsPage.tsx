@@ -233,8 +233,8 @@ export function SettingsPage() {
               </div>
             </div>
             <div className="set-row">
-              <div className="set-label"><span>备份目录</span><span className="subtle">留空 = 默认 %AppData%/com.worklog.app/backups/</span></div>
-              <Input value={settings.autoBackupDir} onChange={(_, d) => void patch({ autoBackupDir: d.value })} placeholder="留空 = 默认目录" className="grow" />
+              <div className="set-label"><span>备份目录</span><span className="subtle">留空则用下方灰色默认目录</span></div>
+              <Input value={settings.autoBackupDir} onChange={(_, d) => void patch({ autoBackupDir: d.value })} placeholder="%AppData%/com.worklog.app/backups/" className="grow" />
             </div>
           </>
         )}
