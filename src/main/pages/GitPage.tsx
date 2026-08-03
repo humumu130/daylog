@@ -277,10 +277,9 @@ export function GitPage() {
       </div>
       {period === 'range' && (
         <div className="row gap-sm" style={{ marginBottom: 16 }}>
-          <span className="muted" style={{ fontSize: 12 }}>起始</span>
-          <input type="date" className="sel git-period-input" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
-          <span className="muted" style={{ fontSize: 12 }}>结束</span>
-          <input type="date" className="sel git-period-input" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+          <input type="date" className="sel" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} style={{ width: 138 }} />
+          <span className="muted">至</span>
+          <input type="date" className="sel" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} style={{ width: 138 }} />
         </div>
       )}
 
