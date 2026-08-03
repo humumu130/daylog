@@ -26,14 +26,8 @@ export function SettingsPage() {
   const [pcolor, setPcolor] = useState('#0078d4');
   const [pkw, setPkw] = useState('');
 
-  // 批量加仓库
-  const [repoPaths, setRepoPaths] = useState('');
-  const [repoProj, setRepoProj] = useState<string>('');
-  const [repoAuthor, setRepoAuthor] = useState('');
-
   // 展开/折叠
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showBatch, setShowBatch] = useState(false); // 高级：批量导入仓库（默认收起）
 
   // 内联编辑：仓库
   const [editRid, setEditRid] = useState<string | null>(null);
@@ -58,17 +52,6 @@ export function SettingsPage() {
     setPname(''); setPkw('');
   }
 
-  async function addRepos() {
-    const paths = repoPaths.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (paths.length === 0) { flash('请先填写仓库路径'); return; }
-    const pid = repoProj || null;
-    const author = repoAuthor.trim();
-    const newRepos: GitRepo[] = paths.map((p) => ({ id: crypto.randomUUID(), path: p, projectId: pid, author }));
-    await patch({ repos: [...(settings.repos ?? []), ...newRepos] });
-    flash(`已添加 ${newRepos.length} 个仓库`);
-    setRepoPaths(''); setRepoAuthor('');
-    if (pid) setExpanded((prev) => new Set(prev).add(pid));
-  }
   async function removeRepo(id: string) { await patch({ repos: settings.repos.filter((r) => r.id !== id) }); }
   async function addRepoToProject(projectId: string, path: string, author: string) {
     const p = path.trim();
@@ -236,39 +219,11 @@ export function SettingsPage() {
       {/* 项目与仓库（整合） */}
       <section className="card set-section">
         <h3 className="set-h">项目与仓库</h3>
-        <p className="set-tip">📌 项目用来给日志归类；每个项目可关联一个或多个本地 Git 仓库，用于自动扫描提交导入。先建项目，再在项目卡里「+ 关联仓库」。</p>
-
-        {/* 新建项目（名字必填；颜色默认可改；关键词可选） */}
-        <div className="row gap-sm proj-add">
-          <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名（必填）" />
-          <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
-          <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔；用于自动归类）" className="grow" />
-          <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
-        </div>
-
-        {/* 高级：批量导入仓库（多行），默认收起，避免新手混乱 */}
-        <div style={{ marginTop: 6 }}>
-          <button onClick={() => setShowBatch((s) => !s)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12, padding: 0 }}>
-            {showBatch ? '收起批量导入 ▴' : '高级 ▸ 批量导入仓库（多个路径）'}
-          </button>
-        </div>
-        {showBatch && (
-          <div className="repo-add" style={{ marginTop: 8 }}>
-            <textarea className="sel" value={repoPaths} onChange={(e) => setRepoPaths(e.target.value)}
-              placeholder={'每行一个仓库路径，关联到下方选的项目：\nD:\\code\\pcs-user\nD:\\code\\pcs-order'} rows={3} />
-            <div className="row gap-sm repo-add-meta">
-              <div style={{ width: 200 }}>
-                <Select value={repoProj} onChange={setRepoProj} options={projSelectOptions} />
-              </div>
-              <input className="sel" value={repoAuthor} onChange={(e) => setRepoAuthor(e.target.value)} placeholder="作者(可选)" style={{ flex: 1, width: 'auto' }} />
-              <Button appearance="primary" icon={<AddRegular />} onClick={() => void addRepos()}>添加仓库</Button>
-            </div>
-          </div>
-        )}
+        <p className="set-tip">📌 项目用来给日志归类；每个项目可关联一个或多个本地 Git 仓库，用于自动扫描提交导入。点最下面「新建项目」，再在项目卡里「+ 关联仓库」。</p>
 
         {/* 项目列表（含仓库折叠） */}
         <div className="proj-repo-list">
-          {projects.length === 0 && settings.repos.length === 0 && <div className="empty">还没有项目或仓库，在上方添加</div>}
+          {projects.length === 0 && settings.repos.length === 0 && <div className="empty">还没有项目，在下方新建一个</div>}
 
           {projects.map((p) => {
             const projRepos = reposOf(p.id);
@@ -385,6 +340,14 @@ export function SettingsPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* 新建项目（放最下面，列表末尾追加） */}
+        <div className="row gap-sm proj-add" style={{ marginTop: 12 }}>
+          <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名（必填）" className="grow" />
+          <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
+          <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔）" style={{ width: 220 }} />
+          <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
         </div>
       </section>
 
