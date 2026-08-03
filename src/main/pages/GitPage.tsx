@@ -268,7 +268,7 @@ export function GitPage() {
         </div>
       </div>
 
-      <div className="row gap-sm" style={{ marginBottom: 16, flexWrap: 'nowrap', overflow: 'auto' }}>
+      <div className="row gap-sm git-toolbar" style={{ marginBottom: 16, flexWrap: 'nowrap', overflow: 'auto' }}>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === 'today' ? 'primary' : 'secondary'} onClick={() => setPeriod('today')}>今天</Button>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === '7d' ? 'primary' : 'secondary'} onClick={() => setPeriod('7d')}>最近7天</Button>
         <Button size="small" style={{ minWidth: 80 }} appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>

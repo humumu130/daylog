@@ -462,6 +462,8 @@ textarea.sel {
 .git-month.is-active { border-color: var(--accent); }
 /* 时段工具栏的日期/月份输入框：高度对齐 small 按钮 */
 .git-period-input { height: 28px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; }
+/* Git 时段工具栏：子元素不收缩、文字不换行，避免按钮被压窄导致换行 */
+.git-toolbar > * { flex: none; white-space: nowrap; }
 /* 智能整合：展开看原始提交 */
 .git-smart-detail { padding: 2px 8px 8px 30px; display: flex; flex-direction: column; gap: 4px; }
 .git-smart-commit { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-2); }
