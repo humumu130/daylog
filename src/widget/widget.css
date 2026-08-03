@@ -96,6 +96,13 @@
   font-size: 11px;
   color: var(--colorNeutralForeground3);
 }
+.widget-hours-input {
+  width: 56px;
+  font-size: 12px;
+  text-align: center;
+  padding: 2px 4px;
+  flex: none;
+}
 .widget-del {
   flex: none;
   display: flex;

@@ -1,4 +1,4 @@
-import { formatYMD, parseYMD } from '../utils/date';
+import { addDays, formatYMD, parseYMD } from '../utils/date';
 
 /** 区间内日期（YYYY-MM-DD），可选跳过周六日 */
 export function daysBetween(start: string, end: string, skipWeekend: boolean): string[] {
@@ -128,4 +128,31 @@ export function allocate(input: AllocInput): AllocResult {
     totalAssigned: round2(totalAssigned),
     itemCount: N,
   };
+}
+
+/**
+ * 从 endDay 起向前倒着分配 totalHours：每天先填满（单日上限 - 已有工时），
+ * 溢出的转到前一天，适合"今天完成一项 16h 的工作 → 记到昨天+今天"。
+ * 所有天都满时，剩余压到最早那天（加班）。
+ */
+export function splitHoursBackward(
+  totalHours: number,
+  dailyCap: number,
+  existing: Record<string, number>,
+  endDay: string,
+): { day: string; hours: number }[] {
+  const out: { day: string; hours: number }[] = [];
+  let remaining = totalHours;
+  let day = endDay;
+  let guard = 0;
+  while (remaining > 0.01 && guard < 40) {
+    const cap = Math.max(0, dailyCap - (existing[day] ?? 0));
+    const take = Math.min(remaining, cap);
+    if (take > 0.01) out.push({ day, hours: round2(take) });
+    remaining -= take;
+    day = addDays(day, -1);
+    guard++;
+  }
+  if (remaining > 0.01) out.push({ day, hours: round2(remaining) });
+  return out;
 }

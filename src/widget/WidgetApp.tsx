@@ -7,11 +7,12 @@ import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
 import { useRecordsStore } from '../stores/useRecordsStore';
-import { createRecord } from '../services/db';
+import { createRecord, listRecordsByRange } from '../services/db';
 import { notifyChanged, onTheme } from '../services/events';
 import { hideWidget } from '../services/window';
 import { autoDuration, commitAutoDuration } from '../services/duration';
-import { todayYMD } from '../utils/date';
+import { splitHoursBackward } from '../services/allocate';
+import { addDays, todayYMD } from '../utils/date';
 import { formatHM, halfOf } from '../utils/halfDay';
 import { parseEntry } from '../utils/parseEntry';
 import './widget.css';
@@ -47,6 +48,7 @@ export function WidgetApp() {
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState('');
   const [pinned, setPinned] = useState(true); // 置顶（始终在最前）
+  const [hoursById, setHoursById] = useState<Record<string, string>>({}); // 每条待办的工时输入
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -111,38 +113,44 @@ export function WidgetApp() {
     }
   }
 
-  async function complete(id: string, title: string, projectId: string | null, note: string) {
-    setBusy(id);
+  /** 完成待办并记一笔。hours 为输入框/携带的显式工时；> 单日上限则倒着拆到多天；无则自动分配 */
+  async function complete(task: { id: string; title: string; projectId: string | null; note: string }, hours: number | null) {
+    setBusy(task.id);
     try {
-      const explicit = readDuration(note);
-      let durationMin: number;
-      let plan;
-      if (explicit !== null) {
-        durationMin = explicit;
+      const fromNote = readDuration(task.note);
+      const h = hours != null ? hours : fromNote;
+      const half = halfOf(new Date(), settings.boundaries);
+      if (h != null && h > 0) {
+        if (h > settings.dailyCapHours) {
+          // 超过单日上限：倒着拆到多天（今天优先，满了转前一天）
+          const span = Math.ceil(h / settings.dailyCapHours) + 1;
+          const recs = await listRecordsByRange(addDays(todayYMD(), -span), todayYMD());
+          const existing: Record<string, number> = {};
+          for (const r of recs) existing[r.day] = (existing[r.day] ?? 0) + (r.durationMin ?? 0) / 60;
+          const split = splitHoursBackward(h, settings.dailyCapHours, existing, todayYMD());
+          for (const s of split) {
+            await createRecord({ content: task.title, durationMin: Math.round(s.hours * 60), day: s.day, half, taskId: task.id, projectId: task.projectId, source: 'manual' });
+          }
+          await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());
+          flashMsg(`已记 ${split.length} 天 · 共 ${h}h`);
+        } else {
+          await createRecord({ content: task.title, durationMin: Math.round(h * 60), day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual' });
+          await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());
+          flashMsg(`已完成 · ${h}h`);
+        }
       } else {
-        plan = await autoDuration(todayYMD());
-        durationMin = plan.share;
+        // 无显式工时：autoDuration 智能分配
+        const plan = await autoDuration(todayYMD());
+        await createRecord({ content: task.title, durationMin: plan.share, day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual', meta: { autoDuration: true } });
+        await commitAutoDuration(plan);
+        await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());
+        flashMsg(`已记一笔 · 自动 ${formatHM(plan.share)}`);
       }
-      // 先建新记录 → 建成功后再压缩已有（保证原子性）
-      await createRecord({
-        content: title,
-        durationMin,
-        day: todayYMD(),
-        half: halfOf(new Date(), settings.boundaries),
-        taskId: id,
-        projectId,
-        source: 'manual',
-        meta: plan ? { autoDuration: true } : undefined,
-      });
-      if (plan) await commitAutoDuration(plan);
-      await setStatus(id, 'done');
-      await notifyChanged();
-      await setRange(todayYMD(), todayYMD());
-      flashMsg(plan ? `已记一笔 · 自动 ${formatHM(durationMin)}` : '已完成并记录');
     } catch (e) {
       flashMsg('记录失败：' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(null);
+      setHoursById((m) => { const n = { ...m }; delete n[task.id]; return n; });
     }
   }
 
@@ -198,7 +206,7 @@ export function WidgetApp() {
           const dur = readDuration(t.note);
           return (
             <div key={t.id} className={`widget-item${busy === t.id ? ' busy' : ''}`}>
-              <Checkbox disabled={busy === t.id} onChange={() => void complete(t.id, t.title, t.projectId, t.note)} />
+              <Checkbox tabIndex={-1} disabled={busy === t.id} onChange={() => void complete(t, null)} />
               <div className="widget-item-body">
                 <span className="widget-item-title">{t.title}</span>
                 <div className="widget-item-meta">
@@ -210,9 +218,28 @@ export function WidgetApp() {
                   {dur != null && <span className="widget-item-dur">{formatHM(dur)}</span>}
                 </div>
               </div>
+              <input
+                className="sel widget-hours-input"
+                type="number"
+                step={0.5}
+                min={0}
+                placeholder="工时"
+                value={hoursById[t.id] ?? ''}
+                onChange={(e) => setHoursById((m) => ({ ...m, [t.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const hv = parseFloat(hoursById[t.id] ?? '');
+                    void complete(t, isNaN(hv) ? null : hv);
+                  }
+                }}
+                disabled={busy === t.id}
+                title="工时（小时），回车完成；不填自动分配；超单日上限自动拆到前几天"
+              />
               <button
                 className="widget-del"
                 title="删除"
+                tabIndex={-1}
                 disabled={busy === t.id}
                 onClick={() => void removeTask(t.id)}
               >
