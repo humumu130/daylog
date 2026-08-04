@@ -15,8 +15,9 @@ jobs:
           # macOS：universal 同时支持 Apple Silicon(M1/M2) 和 Intel
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
+          # Windows：NSIS 出 .exe 安装包。中文 productName 下 WiX(light.exe) 会失败，故不用 MSI
           - platform: 'windows-latest'
-            args: ''
+            args: '--bundles nsis'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
