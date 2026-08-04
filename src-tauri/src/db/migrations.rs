@@ -76,5 +76,17 @@ pub fn migrations() -> Vec<Migration> {
             sql: "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "reports_add_date_from",
+            sql: "ALTER TABLE reports ADD COLUMN date_from TEXT",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 14,
+            description: "reports_add_date_to",
+            sql: "ALTER TABLE reports ADD COLUMN date_to TEXT",
+            kind: MigrationKind::Up,
+        },
     ]
 }
