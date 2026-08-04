@@ -1,0 +1,56 @@
+name: release
+
+# 打 tag（如 v1.0.0）或在 Actions 页手动触发 → 自动在 macOS + Windows 上构建，产物挂到 Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS：universal 同时支持 Apple Silicon(M1/M2) 和 Intel
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+          - platform: 'windows-latest'
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install frontend deps
+        run: pnpm install
+
+      - name: Build & publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: '日迹 ${{ github.ref_name }}'
+          releaseBody: |
+            下载 Assets 里对应平台的安装包：
+            - Windows：`日迹_x.x.x_x64-setup.exe`
+            - macOS：`日迹_x.x.x_universal.dmg`（首次打开若提示"未识别开发者"，右键→打开）
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
