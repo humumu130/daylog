@@ -1,9 +1,14 @@
-/// 自动备份到 app data 目录
+/// 自动备份：data=JSON 内容；keep=保留份数(None=5，0=不清理)；dir=自定义目录(None/空=默认 com.worklog.app/backups)
 #[tauri::command]
-pub fn auto_backup_cmd(data: String) -> Result<String, String> {
-    let app_data = dirs_next::data_dir()
-        .ok_or("找不到 app data 目录")?;
-    let backup_dir = app_data.join("com.worklog.app").join("backups");
+pub fn auto_backup_cmd(data: String, keep: Option<usize>, dir: Option<String>) -> Result<String, String> {
+    use std::path::PathBuf;
+    let backup_dir: PathBuf = match dir {
+        Some(d) if !d.trim().is_empty() => PathBuf::from(d),
+        _ => {
+            let app_data = dirs_next::data_dir().ok_or("找不到 app data 目录")?;
+            app_data.join("com.worklog.app").join("backups")
+        }
+    };
     std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("创建备份目录失败：{e}"))?;
 
@@ -13,15 +18,18 @@ pub fn auto_backup_cmd(data: String) -> Result<String, String> {
     std::fs::write(&file_path, &data)
         .map_err(|e| format!("写入备份失败：{e}"))?;
 
-    // 清理旧备份，保留最近 5 份
-    let mut backups: Vec<_> = std::fs::read_dir(&backup_dir)
-        .map_err(|e| e.to_string())?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().starts_with("backup-"))
-        .collect();
-    backups.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-    for old in backups.iter().skip(5) {
-        let _ = std::fs::remove_file(old.path());
+    // 清理旧备份，保留最近 keep 份（0 = 不清理）
+    let keep_n = keep.unwrap_or(5);
+    if keep_n > 0 {
+        let mut backups: Vec<_> = std::fs::read_dir(&backup_dir)
+            .map_err(|e| e.to_string())?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().starts_with("backup-"))
+            .collect();
+        backups.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+        for old in backups.iter().skip(keep_n) {
+            let _ = std::fs::remove_file(old.path());
+        }
     }
     Ok(file_path.to_string_lossy().to_string())
 }
