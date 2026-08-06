@@ -683,4 +683,7 @@ textarea.sel {
 .git-imported-badge { font-size: 10px; background: var(--border-soft); color: var(--text-3); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
 .git-smart-meta { font-size: 11px; white-space: nowrap; }
 .git-hours { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+/* 智能整合：工时输入框（明显可编辑） */
+.git-hours-input { width: 60px; font-size: 13px; font-weight: 600; text-align: center; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); }
+.git-hours-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
 .git-existing-badge { font-size: 10px; background: var(--border); color: var(--text-3); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }

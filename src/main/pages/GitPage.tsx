@@ -241,7 +241,7 @@ export function GitPage() {
   const ActionBar = (
     <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
       {done && <span className="muted">{done}</span>}
-      <Button size="small" appearance="subtle" onClick={toggleAll} disabled={selectableKeys.length === 0}>
+      <Button size="small" appearance="secondary" onClick={toggleAll} disabled={selectableKeys.length === 0}>
         {allSelected ? '取消全选' : '全选'}
       </Button>
       <Button size="small" appearance="secondary" onClick={() => setRangeOpen(true)} disabled={checked.size === 0}>
@@ -375,7 +375,7 @@ export function GitPage() {
               <div className="git-group-head">
                 <span className="git-repo-name">整合结果</span>
                 <span className="muted">
-                  {smartItems.filter((i) => !i.isExisting && !i.imported).length} 新增 · {smartItems.filter((i) => i.isExisting).length} 已有 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}（可手改）
+                  {smartItems.filter((i) => !i.isExisting && !i.imported).length} 新增 · {smartItems.filter((i) => i.isExisting).length} 已有 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}
                 </span>
                 <Button size="small" appearance="subtle" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)} style={{ marginLeft: 'auto' }}>
                   重新整合
