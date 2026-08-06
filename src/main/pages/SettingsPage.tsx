@@ -88,15 +88,15 @@ export function SettingsPage() {
     setEditPid(null); flash('已更新项目');
   }
 
-  // 每个项目的仓库数
+  // 每个项目的仓库数（projectId 为空 或 指向已删项目 → 算未映射 '__none'）
   const repoCountByProj = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of settings.repos) {
-      const k = r.projectId ?? '__none';
+      const k = r.projectId && projects.some((p) => p.id === r.projectId) ? r.projectId : '__none';
       m[k] = (m[k] ?? 0) + 1;
     }
     return m;
-  }, [settings.repos]);
+  }, [settings.repos, projects]);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -106,7 +106,10 @@ export function SettingsPage() {
     });
   }
   function reposOf(projId: string | null) {
-    return settings.repos.filter((r) => (r.projectId ?? '__none') === (projId ?? '__none'));
+    return settings.repos.filter((r) => {
+      const eff = r.projectId && projects.some((p) => p.id === r.projectId) ? r.projectId : null;
+      return (eff ?? '__none') === (projId ?? '__none');
+    });
   }
 
   const projSelectOptions = [{ value: '', label: '不映射' }, ...projects.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }))];
@@ -281,7 +284,12 @@ export function SettingsPage() {
                         <button className="icon-btn" title="删除" onClick={() => setConfirm({
                           title: `删除项目「${p.name}」？`,
                           message: '项目下的历史记录不会被删除，但会失去项目归类。确定删除？',
-                          onConfirm: () => { void removeProject(p.id); flash('已删除项目'); },
+                          onConfirm: () => {
+                            // 级联：删项目同时移除其下仓库，避免孤儿仓库（Git 页仍扫但界面看不见）
+                            void patch({ repos: settings.repos.filter((r) => r.projectId !== p.id) });
+                            void removeProject(p.id);
+                            flash('已删除项目');
+                          },
                         })}><DeleteRegular /></button>
                       </span>
                     </div>

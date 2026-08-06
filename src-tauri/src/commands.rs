@@ -34,10 +34,11 @@ pub fn auto_backup_cmd(data: String, keep: Option<usize>, dir: Option<String>) -
     Ok(file_path.to_string_lossy().to_string())
 }
 
-/// 读取 git 提交日志
+/// 读取 git 提交日志（异步 + 25s 超时，避免大仓/慢盘/锁住时卡死 UI）
 #[tauri::command]
-pub fn git_log(repo: String, since: String, author: Option<String>, until: Option<String>) -> Result<String, String> {
-    let mut cmd = std::process::Command::new("git");
+pub async fn git_log(repo: String, since: String, author: Option<String>, until: Option<String>) -> Result<String, String> {
+    use std::process::Stdio;
+    let mut cmd = tokio::process::Command::new("git");
     cmd.current_dir(&repo).arg("log");
     if !since.is_empty() {
         cmd.args(["--since", &since]);
@@ -53,7 +54,11 @@ pub fn git_log(repo: String, since: String, author: Option<String>, until: Optio
         }
     }
     cmd.args(["--no-merges", "--pretty=format:%h|%s|%an|%ad", "--date=short"]);
-    let out = cmd.output().map_err(|e| format!("执行 git 失败：{e}"))?;
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let out = tokio::time::timeout(std::time::Duration::from_secs(40), cmd.output())
+        .await
+        .map_err(|_| format!("git log 超时（40s），仓库可能过大或 .git 被锁：{repo}"))?
+        .map_err(|e| format!("执行 git 失败：{e}"))?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
