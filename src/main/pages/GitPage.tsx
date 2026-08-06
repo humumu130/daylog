@@ -27,6 +27,7 @@ export function GitPage() {
   const patchSettings = useSettingsStore((s) => s.patch);
   const llmConfig = useSettingsStore((s) => s.settings.llm);
   const dailyCap = useSettingsStore((s) => s.settings.dailyCapHours);
+  const gitAuthor = useSettingsStore((s) => s.settings.gitAuthor);
   const projects = useProjectsStore((s) => s.projects);
   const create = useRecordsStore((s) => s.create);
 
@@ -82,7 +83,7 @@ export function GitPage() {
     setDone('');
     try {
       const known = await loadKnownHashes();
-      const res = await scanRepos(repos, since, until);
+      const res = await scanRepos(repos, since, until, gitAuthor);
       const annotated: AnnotatedCommit[] = res.commits.map((c) => ({ ...c, imported: known.has(c.hash) }));
       setCommits(annotated);
       setErrors(res.errors);

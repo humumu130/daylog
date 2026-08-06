@@ -251,6 +251,11 @@ export function SettingsPage() {
         <h3 className="set-h">项目与仓库</h3>
         <p className="set-tip">📌 项目用来给日志归类；每个项目可关联一个或多个本地 Git 仓库，用于自动扫描提交导入。点最下面「新建项目」，再在项目卡里「+ 关联仓库」。</p>
 
+        <div className="set-row" style={{ marginTop: 8 }}>
+          <div className="set-label"><span>Git 作者（全局）</span><span className="subtle">扫描时只取这个作者的提交；留空=取全部；各仓库单独填的作者可覆盖</span></div>
+          <Input value={settings.gitAuthor} onChange={(_, d) => void patch({ gitAuthor: d.value })} placeholder="如 huanglin 或 huanglin@xx.com" className="grow" style={{ maxWidth: 280 }} />
+        </div>
+
         {/* 项目列表（含仓库折叠） */}
         <div className="proj-repo-list">
           {projects.length === 0 && settings.repos.length === 0 && <div className="empty">还没有项目，在下方新建一个</div>}

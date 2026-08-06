@@ -97,6 +97,8 @@ export interface AppSettings {
   llm: LlmConfig;
   repos: GitRepo[];
   gitImportMode: 'raw' | 'smart';
+  /** Git 提交作者（全局，扫描时按此过滤；各仓库 author 可单独覆盖） */
+  gitAuthor: string;
   autostart: boolean;
   /** 下班提醒：到点若今日记录不足则桌面通知。空字符串=关闭 */
   remindTime: string;

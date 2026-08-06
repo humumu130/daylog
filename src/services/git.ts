@@ -16,6 +16,7 @@ export async function scanRepos(
   repos: GitRepo[],
   since: string,
   until?: string,
+  globalAuthor?: string,
 ): Promise<{ commits: GitCommit[]; errors: { path: string; error: string }[] }> {
   // 并行扫描所有仓库，总耗时 ≈ 最慢的那个（而非相加）
   const results = await Promise.all(repos.map(async (repo) => {
@@ -23,7 +24,7 @@ export async function scanRepos(
       const out = await invoke<string>('git_log', {
         repo: repo.path,
         since,
-        author: repo.author || null,
+        author: repo.author || globalAuthor || null,
         until: until ?? null,
       });
       const commits: GitCommit[] = [];

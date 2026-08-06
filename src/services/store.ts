@@ -17,6 +17,7 @@ export const SettingKeys = {
   llm: 'llm',
   repos: 'repos',
   gitImportMode: 'gitImportMode',
+  gitAuthor: 'gitAuthor',
   autostart: 'autostart',
   remindTime: 'remindTime',
   remindMinMinutes: 'remindMinMinutes',
@@ -49,6 +50,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   repos: [],
   gitImportMode: 'raw',
+  gitAuthor: '',
   autostart: true,
   remindTime: '18:00',
   remindMinMinutes: 8 * 60,
@@ -59,7 +61,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
@@ -68,6 +70,7 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<LlmConfig>(SettingKeys.llm, DEFAULT_SETTINGS.llm),
     getSetting<GitRepo[]>(SettingKeys.repos, DEFAULT_SETTINGS.repos),
     getSetting<'raw' | 'smart'>(SettingKeys.gitImportMode, DEFAULT_SETTINGS.gitImportMode),
+    getSetting<string>(SettingKeys.gitAuthor, DEFAULT_SETTINGS.gitAuthor),
     getSetting<boolean>(SettingKeys.autostart, DEFAULT_SETTINGS.autostart),
     getSetting<string>(SettingKeys.remindTime, DEFAULT_SETTINGS.remindTime),
     getSetting<number>(SettingKeys.remindMinMinutes, DEFAULT_SETTINGS.remindMinMinutes),
@@ -76,5 +79,5 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<number>(SettingKeys.autoBackupKeep, DEFAULT_SETTINGS.autoBackupKeep),
     getSetting<string>(SettingKeys.autoBackupDir, DEFAULT_SETTINGS.autoBackupDir),
   ]);
-  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir };
 }
