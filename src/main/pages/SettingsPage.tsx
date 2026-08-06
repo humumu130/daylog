@@ -7,6 +7,7 @@ import { setAutostart } from '../../services/autostart';
 import { HotkeyField } from '../components/HotkeyField';
 import { Select } from '../components/Select';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { HelpTip } from '../components/HelpTip';
 import type { GitRepo, LlmConfig, ReportTemplate } from '../../types/models';
 import * as db from '../../services/db';
 import { generateReport } from '../../services/llm';
@@ -131,7 +132,7 @@ export function SettingsPage() {
           <HotkeyField value={settings.todoHotkey} onCommit={(a) => { void patch({ todoHotkey: a }); flash('待办插件热键：' + a); }} />
         </div>
         <div className="set-row">
-          <div className="set-label"><span>主界面热键</span><span className="subtle">呼出/收起主窗口（收起后驻留托盘）</span></div>
+          <div className="set-label"><span>主界面热键<HelpTip text="呼出/收起主窗口（收起后驻留托盘）" /></span></div>
           <HotkeyField value={settings.mainHotkey} onCommit={(a) => { void patch({ mainHotkey: a }); flash('主界面热键：' + a); }} />
         </div>
         <div className="set-row"><div className="set-label"><span>深色模式</span></div>
@@ -141,7 +142,7 @@ export function SettingsPage() {
           <Switch checked={settings.autostart} onChange={(_, d) => void toggleAutostart(d.checked)} />
         </div>
         <div className="set-row">
-          <div className="set-label"><span>下班提醒</span><span className="subtle">到点若今日记录不足，桌面通知提醒补记；留空关闭</span></div>
+          <div className="set-label"><span>下班提醒<HelpTip text="到点若今日记录不足，桌面通知提醒补记；留空关闭" /></span></div>
           <div className="row gap-sm">
             <input
               type="time"
@@ -164,7 +165,7 @@ export function SettingsPage() {
           </div>
         </div>
         <div className="set-row">
-          <div className="set-label"><span>单日工时上限</span><span className="subtle">Git 区间分配时遵守；超出会标为加班</span></div>
+          <div className="set-label"><span>单日工时上限<HelpTip text="Git 区间分配时遵守；超出会标为加班" /></span></div>
           <div className="row gap-sm">
             <input
               type="number"
@@ -191,7 +192,7 @@ export function SettingsPage() {
         </div>
         {settings.llm.kind === 'openai-compat' && (
           <>
-            <div className="set-row"><div className="set-label"><span>API 地址</span><span className="subtle">智谱默认 https://open.bigmodel.cn/v1</span></div>
+            <div className="set-row"><div className="set-label"><span>API 地址<HelpTip text="智谱默认 https://open.bigmodel.cn/v1" /></span></div>
               <Input value={settings.llm.baseUrl ?? ''} onChange={(_, d) => setLlm({ baseUrl: d.value })} className="grow" />
             </div>
             <div className="set-row"><div className="set-label"><span>API Key</span></div>
@@ -215,7 +216,7 @@ export function SettingsPage() {
       <section className="card set-section">
         <h3 className="set-h">数据备份</h3>
         <div className="set-row">
-          <div className="set-label"><span>导出 / 导入</span><span className="subtle">导出全部数据为 JSON 文件；导入会覆盖现有数据</span></div>
+          <div className="set-label"><span>导出 / 导入<HelpTip text="导出全部数据为 JSON 文件；导入会覆盖现有数据" /></span></div>
           <div className="row gap-sm">
             <Button size="small" onClick={async () => { const ok = await exportToFile(); flash(ok ? '已导出' : '已取消'); }}>导出</Button>
             <Button size="small" onClick={async () => { const r = await importFromFile(); if (r.imported > 0) { flash(`已导入 ${r.imported} 条，刷新中…`); setTimeout(() => location.reload(), 1000); } }}>导入</Button>
@@ -252,7 +253,7 @@ export function SettingsPage() {
         <p className="set-tip">📌 项目用来给日志归类；每个项目可关联一个或多个本地 Git 仓库，用于自动扫描提交导入。点最下面「新建项目」，再在项目卡里「+ 关联仓库」。</p>
 
         <div className="set-row" style={{ marginTop: 8 }}>
-          <div className="set-label"><span>Git 作者（全局）</span><span className="subtle">扫描时只取这个作者的提交；留空=取全部；各仓库单独填的作者可覆盖</span></div>
+          <div className="set-label"><span>Git 作者（全局）<HelpTip text="扫描时只取这个作者的提交；留空=取全部；各仓库单独填的作者可覆盖" /></span></div>
           <Input value={settings.gitAuthor} onChange={(_, d) => void patch({ gitAuthor: d.value })} placeholder="如 huanglin 或 huanglin@xx.com" className="grow" style={{ maxWidth: 280 }} />
         </div>
 
