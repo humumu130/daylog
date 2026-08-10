@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRegular, ArrowRightRegular } from '@fluentui/react-icons';
+import { ArrowLeftRegular, ArrowRightRegular, CloudAddRegular } from '@fluentui/react-icons';
 import { CaptureBar } from '../components/CaptureBar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TimelineEntry } from '../components/TimelineEntry';
 import { ProgressRing } from '../components/ProgressRing';
 import { RecordEditor } from '../components/RecordEditor';
+import { ChoerodonSyncModal } from '../components/ChoerodonSyncModal';
 import type { Half, WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useTasksStore } from '../../stores/useTasksStore';
 import { useUiStore } from '../../stores/useUiStore';
 import { addDays, formatYMDChinese, parseYMD, todayYMD, weekdayCN } from '../../utils/date';
@@ -23,8 +25,10 @@ export function TodayPage() {
     half: 'morning',
   });
   const [delId, setDelId] = useState<string | null>(null);
+  const [choerodonOpen, setChoerodonOpen] = useState(false);
 
   const records = useRecordsStore((s) => s.records);
+  const choerodonCfg = useSettingsStore((s) => s.settings.choerodon);
   const setRange = useRecordsStore((s) => s.setRange);
   const create = useRecordsStore((s) => s.create);
   const update = useRecordsStore((s) => s.update);
@@ -76,6 +80,11 @@ export function TodayPage() {
           </div>
         </div>
         <div className="today-head-right">
+          {choerodonCfg && dayRecords.length > 0 && (
+            <button className="today-action" title="上报当日记录到猪齿鱼" onClick={() => setChoerodonOpen(true)}>
+              <CloudAddRegular /> 上报猪齿鱼
+            </button>
+          )}
           <div className="today-stat-card">
             <ProgressRing progress={totalMin / GOAL_MIN} />
             <div className="stat-info">
@@ -128,6 +137,14 @@ export function TodayPage() {
         destructive
         onCancel={() => setDelId(null)}
         onConfirm={() => { if (delId) void remove(delId); setDelId(null); }}
+      />
+
+      <ChoerodonSyncModal
+        open={choerodonOpen}
+        records={dayRecords}
+        projects={projects}
+        choerodonCfg={choerodonCfg}
+        onClose={() => setChoerodonOpen(false)}
       />
     </div>
   );
