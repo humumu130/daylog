@@ -56,7 +56,7 @@ export function ChoerodonSyncModal({ open, records, projects, choerodonCfg, onCl
     setLoading('加载任务…');
     try {
       const cfg: ChoerodonConfig = { baseUrl: choerodonCfg.baseUrl, username: choerodonCfg.username, encryptedPassword: choerodonCfg.encryptedPassword, orgId: choerodonCfg.orgId };
-      const list = await choerodonGetIssues(cfg, token, projId, token.userId);
+      const list = await choerodonGetIssues(cfg, token, projId);
       setIssues(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -113,7 +113,7 @@ export function ChoerodonSyncModal({ open, records, projects, choerodonCfg, onCl
 
             {selectedProjId && (
               <div className="set-row" style={{ marginBottom: 8 }}>
-                <div className="set-label"><span>任务（我的）<HelpTip text="已按经办人过滤、按更新时间倒序" /></span></div>
+                <div className="set-label"><span>任务</span><span className="subtle">按更新时间倒序</span></div>
                 <select className="sel grow" value={selectedIssueId} onChange={(e) => setSelectedIssueId(e.target.value)} disabled={!!loading}>
                   <option value="">选择任务…</option>
                   {loading === '加载任务…' && <option>加载中…</option>}
@@ -167,7 +167,3 @@ export function ChoerodonSyncModal({ open, records, projects, choerodonCfg, onCl
   );
 }
 
-// 内联简易 HelpTip（避免额外 import）
-function HelpTip({ text }: { text: string }) {
-  return <span title={text} style={{ marginLeft: 4, cursor: 'help', color: 'var(--text-3)', fontSize: 11 }}>?</span>;
-}

@@ -1,6 +1,13 @@
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 
+/** 把 JSON 里的大数（雪花 ID）转成字符串，避免 JS 精度丢失 */
+function parseBigintJSON(text: string): unknown {
+  // 匹配 "key":1234567890123456（15位以上数字）→ "key":"1234567890123456"
+  const fixed = text.replace(/"(id|issueId|projectId|assigneeId|reporterId|epicId|sprintId|sprintId|userId|organizationId)":(\d{15,})/g, '"$1":"$2"');
+  return JSON.parse(fixed);
+}
+
 /** 猪齿鱼对接配置（本地存储，不进开源仓库） */
 export interface ChoerodonConfig {
   baseUrl: string;
@@ -83,7 +90,11 @@ export async function choerodonGetProjects(
       body: JSON.stringify({ projectCustomFieldSearchVO: { option: [] } }),
     },
   );
-  const data = await resp.json();
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => '');
+    throw new Error(`获取项目列表失败 (${resp.status}): ${errText.slice(0, 200)}`);
+  }
+  const data = parseBigintJSON(await resp.text()) as { content?: Record<string, unknown>[] };
   const content = data.content || data;
   if (!Array.isArray(content)) return [];
   return content.map((item: Record<string, unknown>) => {
@@ -98,18 +109,12 @@ export async function choerodonGetProjects(
 
 // ==================== 任务列表（按经办人过滤）====================
 
-/** 查询项目下的任务/issue，按经办人过滤，按更新时间倒序 */
+/** 查询项目下的任务/issue，前端按经办人过滤，按更新时间倒序 */
 export async function choerodonGetIssues(
   cfg: ChoerodonConfig,
   token: ChoerodonToken,
   projectId: string,
-  assigneeId?: string,
 ): Promise<ChoerodonIssue[]> {
-  const body: Record<string, unknown> = { treeFlag: true, withSubIssues: false };
-  if (assigneeId) {
-    body.advancedSearchArgs = { assigneeId };
-  }
-
   const resp = await fetch(
     `${cfg.baseUrl}/agile/v2/projects/${projectId}/issues/work_list?page=0&size=100`,
     {
@@ -118,23 +123,33 @@ export async function choerodonGetIssues(
         Authorization: `Bearer ${token.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ treeFlag: true, withSubIssues: false }),
     },
   );
-  const data = await resp.json();
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => '');
+    throw new Error(`获取任务列表失败 (${resp.status}): ${errText.slice(0, 200)}`);
+  }
+  const data = parseBigintJSON(await resp.text()) as { content?: Record<string, unknown>[] };
   const content = data.content || data;
   if (!Array.isArray(content)) return [];
 
-  const issues = content.map((item: Record<string, unknown>) => ({
-    issueId: String(item.issueId),
-    issueNum: String(item.issueNum ?? ''),
-    summary: String(item.summary ?? ''),
-    assigneeId: item.assigneeId ? String(item.assigneeId) : null,
-    assigneeName: item.assigneeName ? String(item.assigneeName) : null,
-    statusCode: String(item.statusCode ?? ''),
-    typeCode: String(item.typeCode ?? ''),
-    lastUpdateDate: String(item.lastUpdateDate ?? ''),
-  }));
+  // 按经办人过滤（前端筛选，确保正确）
+  const issues = content
+    .filter((item: Record<string, unknown>) => {
+      const aid = item.assigneeId ? String(item.assigneeId) : null;
+      return aid === token.userId;
+    })
+    .map((item: Record<string, unknown>) => ({
+      issueId: String(item.issueId),
+      issueNum: String(item.issueNum ?? ''),
+      summary: String(item.summary ?? ''),
+      assigneeId: item.assigneeId ? String(item.assigneeId) : null,
+      assigneeName: item.assigneeName ? String(item.assigneeName) : null,
+      statusCode: String(item.statusCode ?? ''),
+      typeCode: String(item.typeCode ?? ''),
+      lastUpdateDate: String(item.lastUpdateDate ?? ''),
+    }));
 
   // 按更新时间倒序
   issues.sort((a: ChoerodonIssue, b: ChoerodonIssue) => b.lastUpdateDate.localeCompare(a.lastUpdateDate));
