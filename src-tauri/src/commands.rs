@@ -119,28 +119,34 @@ pub async fn choerodon_login_cmd(base_url: String, username: String, encrypted_p
     let cookie_path = cookie_file.to_string_lossy().to_string();
     let login_url = format!("{}/oauth/login", base_url);
     let form_data = format!("username={}&password={}", username, encrypted_password);
+    let devnull = if cfg!(windows) { "NUL" } else { "/dev/null" };
 
-    // 辅助：跑一次 curl（不经过 cmd，避免 % 转义问题），返回 stdout
+    // 辅助：跑一次 curl，返回 stdout（headers from -D -）
     async fn run_curl(args: Vec<String>, creation_flags: u32) -> Result<String, String> {
         let mut cmd = tokio::process::Command::new("curl");
         cmd.args(&args);
         #[cfg(windows)] { cmd.creation_flags(creation_flags); }
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
         let out = cmd.output().await.map_err(|e| format!("curl 失败：{e}"))?;
-        Ok(String::from_utf8_lossy(&out.stdout).to_string())
+        let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("curl 退出码 {}：{}", out.status.code().unwrap_or(-1), stderr.lines().next().unwrap_or("")));
+        }
+        Ok(stdout)
     }
     let flags = 0x0800_0000u32; // CREATE_NO_WINDOW
 
     // 1. GET 登录页（拿 JSESSIONID）
     let _ = run_curl(vec![
-        "-s".into(), "-o".into(), "/dev/null".into(),
+        "-s".into(), "-o".into(), devnull.into(),
         "-c".into(), cookie_path.clone(),
         login_url.clone(),
     ], flags).await?;
 
-    // 2. POST 登录 → 拿 authorize 重定向 URL（从响应头提 location）
+    // 2. POST 登录 → 拿 authorize 重定向 URL
     let step2 = run_curl(vec![
-        "-s".into(), "-D".into(), "-".into(), "-o".into(), "/dev/null".into(),
+        "-s".into(), "-D".into(), "-".into(), "-o".into(), devnull.into(),
         "-b".into(), cookie_path.clone(), "-c".into(), cookie_path.clone(),
         "-X".into(), "POST".into(),
         "-H".into(), "Content-Type: application/x-www-form-urlencoded".into(),
@@ -152,12 +158,12 @@ pub async fn choerodon_login_cmd(base_url: String, username: String, encrypted_p
         .lines()
         .find(|l| l.to_lowercase().starts_with("location:"))
         .map(|l| l.splitn(2, ':').nth(1).unwrap_or("").trim().to_string())
-        .ok_or("登录失败：POST 未返回重定向（密码可能过期）")?;
+        .ok_or_else(|| format!("登录失败：POST 未返回重定向。响应：{}", step2.lines().take(5).collect::<Vec<_>>().join(" | ")))?;
 
     // 3. GET authorize → 拿最终带 access_token 的 URL
     let step3 = run_curl(vec![
-        "-s".into(), "-D".into(), "-".into(), "-o".into(), "/dev/null".into(),
-        "-b".into(), cookie_path.clone(),
+        "-s".into(), "-D".into(), "-".into(), "-o".into(), devnull.into(),
+        "-b".into(), cookie_path.clone(), "-c".into(), cookie_path.clone(),
         authorize_url,
     ], flags).await?;
 
