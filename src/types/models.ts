@@ -110,4 +110,13 @@ export interface AppSettings {
   autoBackupEnabled: boolean;
   autoBackupKeep: number;
   autoBackupDir: string;
+  /** 猪齿鱼对接配置（null = 未启用；公司专属，不进开源） */
+  choerodon: ChoerodonSettings | null;
+}
+
+export interface ChoerodonSettings {
+  baseUrl: string;          // API 地址
+  username: string;         // 邮箱
+  encryptedPassword: string; // RSA 加密的 base64 密码
+  orgId: string;            // 组织 ID
 }

@@ -1,5 +1,5 @@
 import { load } from '@tauri-apps/plugin-store';
-import type { AppSettings, GitRepo, HalfBoundaries, LlmConfig, Theme } from '../types/models';
+import type { AppSettings, ChoerodonSettings, GitRepo, HalfBoundaries, LlmConfig, Theme } from '../types/models';
 import { DEFAULT_BOUNDARIES } from '../utils/halfDay';
 
 let _store: Awaited<ReturnType<typeof load>> | null = null;
@@ -25,6 +25,7 @@ export const SettingKeys = {
   autoBackupEnabled: 'autoBackupEnabled',
   autoBackupKeep: 'autoBackupKeep',
   autoBackupDir: 'autoBackupDir',
+  choerodon: 'choerodon',
 } as const;
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
@@ -58,10 +59,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoBackupEnabled: true,
   autoBackupKeep: 5,
   autoBackupDir: '',
+  choerodon: null,
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir, choerodon] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
@@ -78,6 +80,7 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<boolean>(SettingKeys.autoBackupEnabled, DEFAULT_SETTINGS.autoBackupEnabled),
     getSetting<number>(SettingKeys.autoBackupKeep, DEFAULT_SETTINGS.autoBackupKeep),
     getSetting<string>(SettingKeys.autoBackupDir, DEFAULT_SETTINGS.autoBackupDir),
+    getSetting<ChoerodonSettings | null>(SettingKeys.choerodon, DEFAULT_SETTINGS.choerodon),
   ]);
-  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir, choerodon };
 }

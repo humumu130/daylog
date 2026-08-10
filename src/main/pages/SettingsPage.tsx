@@ -8,9 +8,10 @@ import { HotkeyField } from '../components/HotkeyField';
 import { Select } from '../components/Select';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HelpTip } from '../components/HelpTip';
-import type { GitRepo, LlmConfig, ReportTemplate } from '../../types/models';
+import type { AppSettings, ChoerodonSettings, GitRepo, LlmConfig, ReportTemplate } from '../../types/models';
 import * as db from '../../services/db';
 import { generateReport } from '../../services/llm';
+import { choerodonLogin, choerodonGetProjects, type ChoerodonConfig } from '../../services/choerodon';
 import { exportToFile, importFromFile } from '../../services/backup';
 
 export function SettingsPage() {
@@ -243,6 +244,9 @@ export function SettingsPage() {
           </>
         )}
       </section>
+
+      {/* 猪齿鱼对接（公司专属，不进开源） */}
+      <ChoerodonSection settings={settings} patch={patch} flash={flash} />
 
       {/* 报告模板 */}
       <ReportTemplateSection />
@@ -502,6 +506,75 @@ function LlmTestButton({ config }: { config: LlmConfig }) {
       {status === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>✓ {msg}</span>}
       {status === 'fail' && <span className="muted" style={{ color: '#e81123', fontSize: 12 }}>✗ {msg.slice(0, 80)}</span>}
     </div>
+  );
+}
+
+/** 猪齿鱼对接设置区 */
+function ChoerodonSection({ settings, patch, flash }: { settings: AppSettings; patch: (p: Partial<AppSettings>) => Promise<void>; flash: (m: string) => void }) {
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+  const [testMsg, setTestMsg] = useState('');
+  const c = settings.choerodon;
+
+  function patchC(partial: Partial<ChoerodonSettings>) {
+    if (!c) return;
+    void patch({ choerodon: { ...c, ...partial } });
+  }
+
+  async function testConnection() {
+    if (!c || !c.username || !c.encryptedPassword) { flash('请填邮箱和加密密码'); return; }
+    setTestStatus('testing'); setTestMsg('');
+    try {
+      const cfg: ChoerodonConfig = { baseUrl: c.baseUrl, frontendUrl: '', username: c.username, encryptedPassword: c.encryptedPassword, orgId: c.orgId };
+      const { token, userId, orgId } = await choerodonLogin(cfg);
+      const projects = await choerodonGetProjects(cfg, token, userId);
+      // 自动回填 orgId/userId
+      if (!c.orgId) void patch({ choerodon: { ...c, orgId } });
+      setTestStatus('ok');
+      setTestMsg(`✓ ${projects.length} 个项目可访问`);
+    } catch (e) {
+      setTestStatus('fail');
+      setTestMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <section className="card set-section">
+      <h3 className="set-h">猪齿鱼对接 <HelpTip text="把工作日志自动上报到猪齿鱼系统。公司专属功能，不进开源仓库。需从浏览器 F12 抓 /oauth/login 请求体里 password= 后的加密密码(base64)。" /></h3>
+      <div className="set-row">
+        <div className="set-label"><span>启用</span></div>
+        <Switch checked={!!c} onChange={(_, d) => void patch({ choerodon: d.checked ? (c ?? { baseUrl: 'https://api.choerodon.com.cn', username: '', encryptedPassword: '', orgId: '' }) : null })} />
+      </div>
+      {c && (
+        <>
+          <div className="set-row">
+            <div className="set-label"><span>API 地址</span></div>
+            <Input value={c.baseUrl} onChange={(_, d) => patchC({ baseUrl: d.value })} className="grow" />
+          </div>
+          <div className="set-row">
+            <div className="set-label"><span>用户名（邮箱）</span></div>
+            <Input value={c.username} onChange={(_, d) => patchC({ username: d.value })} className="grow" placeholder="如 huanglin@shac.com.cn" />
+          </div>
+          <div className="set-row">
+            <div className="set-label"><span>加密密码</span><HelpTip text="F12 → Network → POST /oauth/login → Payload → password= 后面的值(base64，含%3D%3D)" /></div>
+            <Input type="password" value={c.encryptedPassword} onChange={(_, d) => patchC({ encryptedPassword: d.value })} className="grow" placeholder="GZ1Brj...%3D%3D" />
+          </div>
+          <div className="set-row">
+            <div className="set-label"><span>组织 ID</span><HelpTip text="留空则登录后自动回填" /></div>
+            <Input value={c.orgId} onChange={(_, d) => patchC({ orgId: d.value })} className="grow" placeholder="自动回填" />
+          </div>
+          <div className="set-row">
+            <div className="set-label"><span>连接测试</span></div>
+            <div className="row gap-sm">
+              <Button size="small" onClick={() => void testConnection()} disabled={testStatus === 'testing'}>
+                {testStatus === 'testing' ? '测试中…' : '测试连接'}
+              </Button>
+              {testStatus === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>{testMsg}</span>}
+              {testStatus === 'fail' && <span className="muted" style={{ color: '#e81123', fontSize: 12 }}>✗ {testMsg.slice(0, 80)}</span>}
+            </div>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
