@@ -26,6 +26,7 @@ pub fn run() {
             commands::git_log,
             commands::run_claude,
             commands::auto_backup_cmd,
+            commands::choerodon_login_cmd,
         ])
         .setup(|app| {
             // 开机自启插件（仅桌面端），启用/禁用由前端控制

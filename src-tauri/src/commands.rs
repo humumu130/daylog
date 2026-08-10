@@ -39,6 +39,7 @@ pub fn auto_backup_cmd(data: String, keep: Option<usize>, dir: Option<String>) -
 pub async fn git_log(repo: String, since: String, author: Option<String>, until: Option<String>) -> Result<String, String> {
     use std::process::Stdio;
     let mut cmd = tokio::process::Command::new("git");
+    #[cfg(windows)] { cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW，避免闪控制台黑框
     cmd.current_dir(&repo).arg("log");
     if !since.is_empty() {
         cmd.args(["--since", &since]);
@@ -82,6 +83,7 @@ pub async fn run_claude(prompt: String) -> Result<String, String> {
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+    #[cfg(windows)] { cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW，claude 子进程不弹黑框
 
     let mut child = cmd
         .spawn()
@@ -106,4 +108,70 @@ pub async fn run_claude(prompt: String) -> Result<String, String> {
         }
     }
     Ok(raw)
+}
+
+/// 猪齿鱼登录：3 步 curl（GET 拿 cookie → POST 登录 → GET authorize 拿 token）
+#[tauri::command]
+pub async fn choerodon_login_cmd(base_url: String, username: String, encrypted_password: String) -> Result<String, String> {
+    use std::process::Stdio;
+
+    let cookie_file = std::env::temp_dir().join(format!("choerodon_{}.txt", std::process::id()));
+    let cookie_path = cookie_file.to_string_lossy().to_string();
+    let login_url = format!("{}/oauth/login", base_url);
+    let form_data = format!("username={}&password={}", username, encrypted_password);
+
+    // 辅助：跑一次 curl（不经过 cmd，避免 % 转义问题），返回 stdout
+    async fn run_curl(args: Vec<String>, creation_flags: u32) -> Result<String, String> {
+        let mut cmd = tokio::process::Command::new("curl");
+        cmd.args(&args);
+        #[cfg(windows)] { cmd.creation_flags(creation_flags); }
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let out = cmd.output().await.map_err(|e| format!("curl 失败：{e}"))?;
+        Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    }
+    let flags = 0x0800_0000u32; // CREATE_NO_WINDOW
+
+    // 1. GET 登录页（拿 JSESSIONID）
+    let _ = run_curl(vec![
+        "-s".into(), "-o".into(), "/dev/null".into(),
+        "-c".into(), cookie_path.clone(),
+        login_url.clone(),
+    ], flags).await?;
+
+    // 2. POST 登录 → 拿 authorize 重定向 URL（从响应头提 location）
+    let step2 = run_curl(vec![
+        "-s".into(), "-D".into(), "-".into(), "-o".into(), "/dev/null".into(),
+        "-b".into(), cookie_path.clone(), "-c".into(), cookie_path.clone(),
+        "-X".into(), "POST".into(),
+        "-H".into(), "Content-Type: application/x-www-form-urlencoded".into(),
+        "-d".into(), form_data,
+        login_url.clone(),
+    ], flags).await?;
+
+    let authorize_url = step2
+        .lines()
+        .find(|l| l.to_lowercase().starts_with("location:"))
+        .map(|l| l.splitn(2, ':').nth(1).unwrap_or("").trim().to_string())
+        .ok_or("登录失败：POST 未返回重定向（密码可能过期）")?;
+
+    // 3. GET authorize → 拿最终带 access_token 的 URL
+    let step3 = run_curl(vec![
+        "-s".into(), "-D".into(), "-".into(), "-o".into(), "/dev/null".into(),
+        "-b".into(), cookie_path.clone(),
+        authorize_url,
+    ], flags).await?;
+
+    let final_url = step3
+        .lines()
+        .find(|l| l.to_lowercase().starts_with("location:"))
+        .map(|l| l.splitn(2, ':').nth(1).unwrap_or("").trim().to_string())
+        .ok_or("登录失败：authorize 未返回 token")?;
+
+    let _ = std::fs::remove_file(&cookie_file);
+
+    // 提取 access_token
+    if let Some(token) = final_url.split("access_token=").nth(1).and_then(|s| s.split('&').next()) {
+        if !token.is_empty() { return Ok(token.to_string()); }
+    }
+    Err(format!("登录失败：URL 里没找到 token：{}", &final_url[..final_url.len().min(200)]))
 }
