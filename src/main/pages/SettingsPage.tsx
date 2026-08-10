@@ -524,11 +524,11 @@ function ChoerodonSection({ settings, patch, flash }: { settings: AppSettings; p
     if (!c || !c.username || !c.encryptedPassword) { flash('请填邮箱和加密密码'); return; }
     setTestStatus('testing'); setTestMsg('');
     try {
-      const cfg: ChoerodonConfig = { baseUrl: c.baseUrl, frontendUrl: '', username: c.username, encryptedPassword: c.encryptedPassword, orgId: c.orgId };
-      const { token, userId, orgId } = await choerodonLogin(cfg);
-      const projects = await choerodonGetProjects(cfg, token, userId);
-      // 自动回填 orgId/userId
-      if (!c.orgId) void patch({ choerodon: { ...c, orgId } });
+      const cfg: ChoerodonConfig = { baseUrl: c.baseUrl, username: c.username, encryptedPassword: c.encryptedPassword, orgId: c.orgId };
+      const token = await choerodonLogin(cfg);
+      const projects = await choerodonGetProjects(cfg, token);
+      // 自动回填 orgId
+      if (!c.orgId) void patch({ choerodon: { ...c, orgId: token.orgId } });
       setTestStatus('ok');
       setTestMsg(`✓ ${projects.length} 个项目可访问`);
     } catch (e) {

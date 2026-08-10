@@ -1,18 +1,18 @@
 import { fetch } from '@tauri-apps/plugin-http';
+import { invoke } from '@tauri-apps/api/core';
 
 /** 猪齿鱼对接配置（本地存储，不进开源仓库） */
 export interface ChoerodonConfig {
-  baseUrl: string;       // API 地址，如 https://api.choerodon.com.cn
-  frontendUrl: string;   // 前端地址，如 https://choerodon.com.cn（redirect_uri 用）
-  username: string;      // 邮箱
-  encryptedPassword: string; // RSA 加密后的 base64 密码（从浏览器抓的）
-  orgId: string;         // 组织 ID
+  baseUrl: string;
+  username: string;
+  encryptedPassword: string;
+  orgId: string;
 }
 
 export interface ChoerodonToken {
   accessToken: string;
-  refreshToken: string;
-  expiresAt: number; // 毫秒时间戳
+  userId: string;
+  orgId: string;
 }
 
 export interface ChoerodonProject {
@@ -40,52 +40,28 @@ export interface ChoerodonWorkLog {
   startDate: string;
 }
 
-// ==================== 登录 ====================
+// ==================== 登录（Rust 端 curl，不闪终端）====================
 
-/** 重放加密密码登录，拿 access_token */
-export async function choerodonLogin(cfg: ChoerodonConfig): Promise<{ token: ChoerodonToken; userId: string; orgId: string }> {
-  const formBody = `username=${encodeURIComponent(cfg.username)}&password=${encodeURIComponent(cfg.encryptedPassword)}`;
-
-  // 1. GET 登录页（拿 JSESSIONID）
-  await fetch(`${cfg.baseUrl}/oauth/login`, { method: 'GET' });
-
-  // 2. POST 登录 → 302 → authorize URL
-  const loginResp = await fetch(`${cfg.baseUrl}/oauth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Referer: `${cfg.baseUrl}/oauth/login` },
-    body: formBody,
-    redirect: 'manual',
+/** 重放加密密码登录 → 拿 access_token + userId + orgId */
+export async function choerodonLogin(cfg: ChoerodonConfig): Promise<ChoerodonToken> {
+  // Rust 端用 curl 做完整重定向链，提取 access_token
+  const accessToken = await invoke<string>('choerodon_login_cmd', {
+    baseUrl: cfg.baseUrl,
+    username: cfg.username,
+    encryptedPassword: cfg.encryptedPassword,
   });
-  const authorizeUrl = loginResp.headers.get('location');
-  if (!authorizeUrl) throw new Error('登录失败：未返回授权地址');
 
-  // 3. GET authorize → 302 → 带 access_token 的 redirect
-  const authResp = await fetch(authorizeUrl, { method: 'GET', redirect: 'manual' });
-  const finalRedirect = authResp.headers.get('location');
-  if (!finalRedirect) throw new Error('登录失败：未返回 token');
-
-  // 从 URL fragment 提取 token
-  const tokenMatch = finalRedirect.match(/access_token=([a-f0-9-]+)/);
-  const refreshMatch = finalRedirect.match(/refresh_token=([a-f0-9-]+)/);
-  const expiresMatch = finalRedirect.match(/expires_in=(\d+)/);
-  if (!tokenMatch) throw new Error('登录失败：token 解析失败');
-
-  const accessToken = tokenMatch[1];
-  const refreshToken = refreshMatch ? refreshMatch[1] : '';
-  const expiresIn = expiresMatch ? parseInt(expiresMatch[1], 10) : 86399;
-
-  // 4. 拿用户信息（userId + orgId）
+  // 用 token 拿用户信息（userId + orgId）
   const userResp = await fetch(`${cfg.baseUrl}/iam/choerodon/v1/users/self`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  const user = await userResp.json();
-  const userId = user.id;
-  const orgId = user.organizationId || cfg.orgId;
+  if (!userResp.ok) throw new Error(`获取用户信息失败 (${userResp.status})`);
+  const user = await userResp.json() as { id: string; organizationId: string };
 
   return {
-    token: { accessToken, refreshToken, expiresAt: Date.now() + expiresIn * 1000 },
-    userId,
-    orgId,
+    accessToken,
+    userId: user.id,
+    orgId: user.organizationId || cfg.orgId,
   };
 }
 
@@ -95,10 +71,9 @@ export async function choerodonLogin(cfg: ChoerodonConfig): Promise<{ token: Cho
 export async function choerodonGetProjects(
   cfg: ChoerodonConfig,
   token: ChoerodonToken,
-  userId: string,
 ): Promise<ChoerodonProject[]> {
   const resp = await fetch(
-    `${cfg.baseUrl}/cbase/choerodon/v1/organizations/${cfg.orgId}/users/${userId}/projects/paging?page=0&size=50&button_permission=true`,
+    `${cfg.baseUrl}/cbase/choerodon/v1/organizations/${token.orgId}/users/${token.userId}/projects/paging?page=0&size=50&button_permission=true`,
     {
       method: 'POST',
       headers: {
