@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, Input } from '@fluentui/react-components';
-import { CheckmarkRegular, EditRegular } from '@fluentui/react-icons';
+import { Check, Pencil } from 'lucide-react';
+import { Button, Input } from '../../ui';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -78,21 +78,22 @@ export function CaptureBar({ day, onDayChange }: Props) {
   return (
     <div className={`capture-bar${flashed ? ' flashed' : ''}`}>
       <div className="capture-row">
-        <Input
-          value={text}
-          onChange={(_, d) => setText(d.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void save();
-            }
-          }}
-          placeholder="修复登录页 2h #用户中心   （支持：昨天 / 5号 / X月X日）"
-          size="large"
-          className="capture-input"
-          contentBefore={<span className="capture-icon">{flashed ? <CheckmarkRegular /> : <EditRegular />}</span>}
-        />
-        <Button appearance="primary" className="capture-btn" onClick={() => void save()}>
+        {/* capture-input 类移到包裹 span：ui Input 前缀模式根节点不吃 className，flex:1 与字号规则仍由原 CSS 接管 */}
+        <span className="capture-input" style={{ display: 'grid' }}>
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void save();
+              }
+            }}
+            placeholder="修复登录页 2h #用户中心   （支持：昨天 / 5号 / X月X日）"
+            prefix={<span className="capture-icon">{flashed ? <Check size={18} /> : <Pencil size={18} />}</span>}
+          />
+        </span>
+        <Button variant="primary" className="capture-btn" onClick={() => void save()}>
           记录
         </Button>
       </div>

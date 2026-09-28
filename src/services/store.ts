@@ -22,6 +22,7 @@ export const SettingKeys = {
   remindTime: 'remindTime',
   remindMinMinutes: 'remindMinMinutes',
   dailyCapHours: 'dailyCapHours',
+  sidebarLabels: 'sidebarLabels',
   autoBackupEnabled: 'autoBackupEnabled',
   autoBackupKeep: 'autoBackupKeep',
   autoBackupDir: 'autoBackupDir',
@@ -56,6 +57,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   remindTime: '18:00',
   remindMinMinutes: 8 * 60,
   dailyCapHours: 8,
+  sidebarLabels: false,
   autoBackupEnabled: true,
   autoBackupKeep: 5,
   autoBackupDir: '',
@@ -63,7 +65,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir, choerodon] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, sidebarLabels, autoBackupEnabled, autoBackupKeep, autoBackupDir, choerodon] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
@@ -77,10 +79,11 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<string>(SettingKeys.remindTime, DEFAULT_SETTINGS.remindTime),
     getSetting<number>(SettingKeys.remindMinMinutes, DEFAULT_SETTINGS.remindMinMinutes),
     getSetting<number>(SettingKeys.dailyCapHours, DEFAULT_SETTINGS.dailyCapHours),
+    getSetting<boolean>(SettingKeys.sidebarLabels, DEFAULT_SETTINGS.sidebarLabels),
     getSetting<boolean>(SettingKeys.autoBackupEnabled, DEFAULT_SETTINGS.autoBackupEnabled),
     getSetting<number>(SettingKeys.autoBackupKeep, DEFAULT_SETTINGS.autoBackupKeep),
     getSetting<string>(SettingKeys.autoBackupDir, DEFAULT_SETTINGS.autoBackupDir),
     getSetting<ChoerodonSettings | null>(SettingKeys.choerodon, DEFAULT_SETTINGS.choerodon),
   ]);
-  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, autoBackupEnabled, autoBackupKeep, autoBackupDir, choerodon };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, sidebarLabels, autoBackupEnabled, autoBackupKeep, autoBackupDir, choerodon };
 }

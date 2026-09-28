@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Spinner } from '@fluentui/react-components';
-import { DismissRegular } from '@fluentui/react-icons';
+import { X } from 'lucide-react';
+import { Button, IconButton, Spinner } from '../../ui';
 import type { ChoerodonSettings, Project, WorkRecord } from '../../types/models';
 import type { ChoerodonConfig, ChoerodonProject, ChoerodonIssue, ChoerodonToken } from '../../services/choerodon';
 import { choerodonLogin, choerodonGetProjects, choerodonGetIssues, choerodonCreateWorkLog } from '../../services/choerodon';
@@ -92,13 +92,17 @@ export function ChoerodonSyncModal({ open, records, projects, choerodonCfg, onCl
       <div className="card modal-card" onClick={(e) => e.stopPropagation()} style={{ width: 580, maxWidth: '94vw', maxHeight: '85vh', overflow: 'auto' }}>
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
           <h3 className="set-h">上报到猪齿鱼</h3>
-          <Button appearance="subtle" size="small" icon={<DismissRegular />} onClick={onClose} />
+          <IconButton title="关闭" size="sm" onClick={onClose}>
+            <X size={14} />
+          </IconButton>
         </div>
 
         {error && <div className="warn-soft" style={{ marginBottom: 10 }}>⚠ {error}</div>}
 
         {step === 'login' && loading && (
-          <div style={{ textAlign: 'center', padding: 40 }}><Spinner label={loading} /></div>
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spinner label={loading} /> <span className="muted">{loading}</span>
+          </div>
         )}
 
         {step === 'main' && (
@@ -142,8 +146,8 @@ export function ChoerodonSyncModal({ open, records, projects, choerodonCfg, onCl
                   </div>
                 </div>
                 <div className="row gap-sm" style={{ justifyContent: 'flex-end' }}>
-                  <Button size="small" onClick={onClose}>取消</Button>
-                  <Button size="small" appearance="primary" onClick={() => void submit()} disabled={!!loading}>
+                  <Button size="sm" onClick={onClose}>取消</Button>
+                  <Button size="sm" variant="primary" onClick={() => void submit()} disabled={!!loading}>
                     {loading || `上报 ${records.length} 条`}
                   </Button>
                 </div>
@@ -159,7 +163,7 @@ export function ChoerodonSyncModal({ open, records, projects, choerodonCfg, onCl
             ) : (
               <><div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div><div>成功 {result.ok} 条，失败 {result.fail} 条</div></>
             )}
-            <Button size="small" appearance="primary" style={{ marginTop: 16 }} onClick={onClose}>完成</Button>
+            <Button size="sm" variant="primary" style={{ marginTop: 16 }} onClick={onClose}>完成</Button>
           </div>
         )}
       </div>

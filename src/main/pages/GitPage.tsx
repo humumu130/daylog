@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Checkbox, Spinner } from '@fluentui/react-components';
+import { Button, Checkbox, Spinner } from '../../ui';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -242,13 +242,13 @@ export function GitPage() {
   const ActionBar = (
     <div className="row gap-sm" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
       {done && <span className="muted">{done}</span>}
-      <Button size="small" appearance="secondary" onClick={toggleAll} disabled={selectableKeys.length === 0}>
+      <Button size="sm" variant="default" onClick={toggleAll} disabled={selectableKeys.length === 0}>
         {allSelected ? '取消全选' : '全选'}
       </Button>
-      <Button size="small" appearance="secondary" onClick={() => setRangeOpen(true)} disabled={checked.size === 0}>
+      <Button size="sm" variant="default" onClick={() => setRangeOpen(true)} disabled={checked.size === 0}>
         分配到区间…
       </Button>
-      <Button size="small" appearance="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
+      <Button size="sm" variant="primary" onClick={() => void doImport()} disabled={checked.size === 0}>
         导入选中 ({checked.size})
       </Button>
     </div>
@@ -270,11 +270,11 @@ export function GitPage() {
       </div>
 
       <div className="row gap-sm wrap" style={{ marginBottom: 12 }}>
-        <Button size="small" style={{ minWidth: 80 }} appearance={period === 'today' ? 'primary' : 'secondary'} onClick={() => setPeriod('today')}>今天</Button>
-        <Button size="small" style={{ minWidth: 80 }} appearance={period === '7d' ? 'primary' : 'secondary'} onClick={() => setPeriod('7d')}>最近7天</Button>
-        <Button size="small" style={{ minWidth: 80 }} appearance={period === '30d' ? 'primary' : 'secondary'} onClick={() => setPeriod('30d')}>最近30天</Button>
-        <Button size="small" appearance={period === 'range' ? 'primary' : 'secondary'} onClick={() => setPeriod('range')}>自定义</Button>
-        <Button size="small" appearance="secondary" style={{ marginLeft: 'auto' }} onClick={() => void scan()} disabled={loading}>重新扫描</Button>
+        <Button size="sm" style={{ minWidth: 80 }} variant={period === 'today' ? 'primary' : 'default'} onClick={() => setPeriod('today')}>今天</Button>
+        <Button size="sm" style={{ minWidth: 80 }} variant={period === '7d' ? 'primary' : 'default'} onClick={() => setPeriod('7d')}>最近7天</Button>
+        <Button size="sm" style={{ minWidth: 80 }} variant={period === '30d' ? 'primary' : 'default'} onClick={() => setPeriod('30d')}>最近30天</Button>
+        <Button size="sm" variant={period === 'range' ? 'primary' : 'default'} onClick={() => setPeriod('range')}>自定义</Button>
+        <Button size="sm" variant="default" style={{ marginLeft: 'auto' }} onClick={() => void scan()} disabled={loading}>重新扫描</Button>
       </div>
       {period === 'range' && (
         <div className="row gap-sm" style={{ marginBottom: 16 }}>
@@ -308,7 +308,7 @@ export function GitPage() {
       {showSmart && smartStale && !smartLoading && (
         <div className="warn-soft">
           原始提交有变化（已重新扫描）。{` `}
-          <Button size="small" appearance="primary" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)}>
+          <Button size="sm" variant="primary" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)}>
             重新整合
           </Button>
         </div>
@@ -323,7 +323,7 @@ export function GitPage() {
         <div className="empty" style={{ padding: 40 }}>
           扫描到 {commits.length} 条提交。
           <div style={{ marginTop: 12 }}>
-            <Button appearance="primary" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)}>
+            <Button variant="primary" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)}>
               开始智能整合
             </Button>
           </div>
@@ -351,7 +351,7 @@ export function GitPage() {
                     const key = `r${c.hash}${c.repoId}`;
                     return (
                       <div key={key} className={`git-row${c.imported ? ' imported' : ''}`}>
-                        <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} />
+                        <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} ariaLabel="选择该提交" />
                         <span className="git-hash">{c.hash}</span>
                         <span className="git-subject">{cleanSubject(c.subject)}</span>
                         {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
@@ -378,7 +378,7 @@ export function GitPage() {
                 <span className="muted">
                   {smartItems.filter((i) => !i.isExisting && !i.imported).length} 新增 · {smartItems.filter((i) => i.isExisting).length} 已有 · 合计 {formatHours(smartItems.reduce((s, i) => s + i.hours * 60, 0))}
                 </span>
-                <Button size="small" appearance="subtle" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)} style={{ marginLeft: 'auto' }}>
+                <Button size="sm" variant="ghost" onClick={() => void runConsolidate(commits, llmConfig, knownHashesRef.current)} style={{ marginLeft: 'auto' }}>
                   重新整合
                 </Button>
               </div>
@@ -391,7 +391,7 @@ export function GitPage() {
                 return (
                   <div key={key}>
                     <div className={`git-row${dimmed ? ' imported' : ''}`}>
-                      <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} />
+                      <Checkbox checked={checked.has(key)} onChange={() => toggle(key)} ariaLabel="选择该整合项" />
                       <span className="git-subject">{item.title}</span>
                       {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
                       <span className="git-smart-meta muted" style={{ cursor: bundled.length ? 'pointer' : 'default' }} onClick={() => bundled.length && toggleSmart(key)} title={bundled.length ? '点击展开原始提交' : ''}>

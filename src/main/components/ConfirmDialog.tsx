@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Button } from '@fluentui/react-components';
+import { Button } from '../../ui';
 
 interface Props {
   open: boolean;
@@ -60,10 +60,10 @@ export function ConfirmDialog({
         <h3 className="cf-title">{title}</h3>
         <p className="cf-msg">{message}</p>
         <div className="cf-actions">
-          <Button size="small" onClick={onCancel}>{cancelText}</Button>
+          <Button size="sm" onClick={onCancel}>{cancelText}</Button>
           <Button
-            size="small"
-            appearance="primary"
+            size="sm"
+            variant="primary"
             className={destructive ? 'cf-danger' : ''}
             onClick={doConfirm}
           >

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Checkbox, FluentProvider, Input } from '@fluentui/react-components';
-import { darkTheme, lightTheme } from '../styles/theme';
-import { AddRegular, DeleteRegular, DismissRegular, PinRegular, TaskListLtrRegular } from '@fluentui/react-icons';
+import { Plus, ListTodo, Pin, Trash2, X } from 'lucide-react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { Button, Checkbox, Input } from '../ui';
+import { applyTheme } from '../styles/applyTheme';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
@@ -43,7 +43,6 @@ export function WidgetApp() {
   const records = useRecordsStore((s) => s.records);
   const setRange = useRecordsStore((s) => s.setRange);
 
-  const [theme, setTheme] = useState(lightTheme);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState('');
@@ -52,7 +51,7 @@ export function WidgetApp() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void loadSettings().then((s) => setTheme(s.theme === 'dark' ? darkTheme : lightTheme));
+    void loadSettings().then((s) => applyTheme(s.theme));
     void fetchTasks();
     void fetchProjects();
     void setRange(todayYMD(), todayYMD());
@@ -60,7 +59,7 @@ export function WidgetApp() {
     const p = w.onFocusChanged(({ payload: f }) => {
       if (f) inputRef.current?.focus();
     });
-    const ut = onTheme((t) => setTheme(t === 'dark' ? darkTheme : lightTheme));
+    const ut = onTheme((t) => applyTheme(t));
     return () => {
       void p.then((fn) => fn());
       void ut.then((fn) => fn());
@@ -159,30 +158,31 @@ export function WidgetApp() {
   }
 
   return (
-    <FluentProvider theme={theme} className="app-shell widget-root">
+    <div className="app-shell widget-root">
       <div className="widget-header" data-tauri-drag-region>
         <span className="widget-title">
-          <TaskListLtrRegular className="widget-title-icon" /> 待办
+          <ListTodo size={14} className="widget-title-icon" /> 待办
         </span>
         <span className="widget-count">{active.length}</span>
         <Button
-          appearance="subtle"
-          size="small"
-          icon={<PinRegular />}
+          variant="ghost"
+          size="sm"
+          icon={<Pin size={14} />}
           className={`widget-pin${pinned ? ' active' : ''}`}
           title={pinned ? '取消置顶' : '置顶（始终在最前）'}
+          aria-label={pinned ? '取消置顶' : '置顶'}
           onClick={() => void togglePin()}
         />
-        <Button appearance="subtle" size="small" icon={<DismissRegular />} onClick={() => void hideWidget()} />
+        <Button variant="ghost" size="sm" icon={<X size={14} />} title="关闭" aria-label="关闭" onClick={() => void hideWidget()} />
       </div>
 
       <div className="widget-add">
         <Input
           ref={inputRef}
           value={text}
-          onChange={(_, d) => setText(d.value)}
+          onChange={(e) => setText(e.target.value)}
           placeholder="加个待办，可带 #项目 / 耗时"
-          contentBefore={<AddRegular />}
+          prefix={<Plus size={14} />}
           className="grow"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -206,7 +206,12 @@ export function WidgetApp() {
           const dur = readDuration(t.note);
           return (
             <div key={t.id} className={`widget-item${busy === t.id ? ' busy' : ''}`}>
-              <Checkbox tabIndex={-1} disabled={busy === t.id} onChange={() => void complete(t, null)} />
+              <Checkbox
+                checked={false}
+                disabled={busy === t.id}
+                ariaLabel={`完成 ${t.title}`}
+                onChange={() => void complete(t, null)}
+              />
               <div className="widget-item-body">
                 <span className="widget-item-title">{t.title}</span>
                 <div className="widget-item-meta">
@@ -239,11 +244,12 @@ export function WidgetApp() {
               <button
                 className="widget-del"
                 title="删除"
+                aria-label={`删除 ${t.title}`}
                 tabIndex={-1}
                 disabled={busy === t.id}
                 onClick={() => void removeTask(t.id)}
               >
-                <DeleteRegular />
+                <Trash2 size={14} />
               </button>
             </div>
           );
@@ -257,6 +263,6 @@ export function WidgetApp() {
           <span>今日 {formatHM(todayMin)} · {todayCount} 条 · 勾选即记一笔</span>
         )}
       </div>
-    </FluentProvider>
+    </div>
   );
 }

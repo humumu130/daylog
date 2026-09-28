@@ -16,6 +16,7 @@ export function Button({
   children,
   disabled,
   type = 'button',
+  className,
   ...rest
 }: ButtonProps) {
   return (
@@ -24,6 +25,7 @@ export function Button({
       data-variant={variant}
       data-size={size}
       disabled={disabled || loading}
+      className={className ? `dl-btn ${className}` : 'dl-btn'}
       {...rest}
     >
       {loading ? (

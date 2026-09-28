@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Switch } from '@fluentui/react-components';
-import { AddRegular, ChevronDownRegular, ChevronRightRegular, DeleteRegular, EditRegular } from '@fluentui/react-icons';
+import { Button, Input, Switch } from '../../ui';
+import { Plus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { setAutostart } from '../../services/autostart';
@@ -137,10 +137,14 @@ export function SettingsPage() {
           <HotkeyField value={settings.mainHotkey} onCommit={(a) => { void patch({ mainHotkey: a }); flash('主界面热键：' + a); }} />
         </div>
         <div className="set-row"><div className="set-label"><span>深色模式</span></div>
-          <Switch checked={settings.theme === 'dark'} onChange={(_, d) => void patch({ theme: d.checked ? 'dark' : 'light' })} />
+          <Switch checked={settings.theme === 'dark'} onChange={(c) => void patch({ theme: c ? 'dark' : 'light' })} />
+        </div>
+        <div className="set-row">
+          <div className="set-label"><span>侧栏显示文字</span><span className="subtle">默认仅图标，紧凑</span></div>
+          <Switch checked={settings.sidebarLabels} onChange={(c) => void patch({ sidebarLabels: c })} />
         </div>
         <div className="set-row"><div className="set-label"><span>开机自启</span></div>
-          <Switch checked={settings.autostart} onChange={(_, d) => void toggleAutostart(d.checked)} />
+          <Switch checked={settings.autostart} onChange={(c) => void toggleAutostart(c)} />
         </div>
         <div className="set-row">
           <div className="set-label"><span>下班提醒<HelpTip text="到点若今日记录不足，桌面通知提醒补记；留空关闭" /></span></div>
@@ -194,13 +198,13 @@ export function SettingsPage() {
         {settings.llm.kind === 'openai-compat' && (
           <>
             <div className="set-row"><div className="set-label"><span>API 地址<HelpTip text="智谱默认 https://open.bigmodel.cn/v1" /></span></div>
-              <Input value={settings.llm.baseUrl ?? ''} onChange={(_, d) => setLlm({ baseUrl: d.value })} className="grow" />
+              <Input value={settings.llm.baseUrl ?? ''} onChange={(e) => setLlm({ baseUrl: e.target.value })} className="grow" />
             </div>
             <div className="set-row"><div className="set-label"><span>API Key</span></div>
-              <Input type="password" value={settings.llm.apiKey ?? ''} onChange={(_, d) => setLlm({ apiKey: d.value })} className="grow" placeholder="sk-..." />
+              <Input type="password" value={settings.llm.apiKey ?? ''} onChange={(e) => setLlm({ apiKey: e.target.value })} className="grow" placeholder="sk-..." />
             </div>
             <div className="set-row"><div className="set-label"><span>模型</span></div>
-              <Input value={settings.llm.model ?? ''} onChange={(_, d) => setLlm({ model: d.value })} placeholder="glm-4-flash" />
+              <Input value={settings.llm.model ?? ''} onChange={(e) => setLlm({ model: e.target.value })} placeholder="glm-4-flash" />
             </div>
           </>
         )}
@@ -219,13 +223,13 @@ export function SettingsPage() {
         <div className="set-row">
           <div className="set-label"><span>导出 / 导入<HelpTip text="导出全部数据为 JSON 文件；导入会覆盖现有数据" /></span></div>
           <div className="row gap-sm">
-            <Button size="small" onClick={async () => { const ok = await exportToFile(); flash(ok ? '已导出' : '已取消'); }}>导出</Button>
-            <Button size="small" onClick={async () => { const r = await importFromFile(); if (r.imported > 0) { flash(`已导入 ${r.imported} 条，刷新中…`); setTimeout(() => location.reload(), 1000); } }}>导入</Button>
+            <Button size="sm" onClick={async () => { const ok = await exportToFile(); flash(ok ? '已导出' : '已取消'); }}>导出</Button>
+            <Button size="sm" onClick={async () => { const r = await importFromFile(); if (r.imported > 0) { flash(`已导入 ${r.imported} 条，刷新中…`); setTimeout(() => location.reload(), 1000); } }}>导入</Button>
           </div>
         </div>
         <div className="set-row">
           <div className="set-label"><span>启用自动备份</span><span className="subtle">每次启动自动备份一份数据</span></div>
-          <Switch checked={settings.autoBackupEnabled} onChange={(_, d) => void patch({ autoBackupEnabled: d.checked })} />
+          <Switch checked={settings.autoBackupEnabled} onChange={(c) => void patch({ autoBackupEnabled: c })} />
         </div>
         {settings.autoBackupEnabled && (
           <>
@@ -239,7 +243,7 @@ export function SettingsPage() {
             </div>
             <div className="set-row">
               <div className="set-label"><span>备份目录</span><span className="subtle">留空则用下方灰色默认目录</span></div>
-              <Input value={settings.autoBackupDir} onChange={(_, d) => void patch({ autoBackupDir: d.value })} placeholder="%AppData%/com.worklog.app/backups/" className="grow" />
+              <Input value={settings.autoBackupDir} onChange={(e) => void patch({ autoBackupDir: e.target.value })} placeholder="%AppData%/com.worklog.app/backups/" className="grow" />
             </div>
           </>
         )}
@@ -258,7 +262,7 @@ export function SettingsPage() {
 
         <div className="set-row" style={{ marginTop: 8 }}>
           <div className="set-label"><span>Git 作者（全局）<HelpTip text="扫描时只取这个作者的提交；留空=取全部；各仓库单独填的作者可覆盖" /></span></div>
-          <Input value={settings.gitAuthor} onChange={(_, d) => void patch({ gitAuthor: d.value })} placeholder="如 huanglin 或 huanglin@xx.com" className="grow" style={{ maxWidth: 280 }} />
+          <Input value={settings.gitAuthor} onChange={(e) => void patch({ gitAuthor: e.target.value })} placeholder="如 huanglin 或 huanglin@xx.com" className="grow" style={{ maxWidth: 280 }} />
         </div>
 
         {/* 项目列表（含仓库折叠） */}
@@ -273,24 +277,24 @@ export function SettingsPage() {
               <div key={p.id} className="proj-repo-item">
                 {editPid === p.id ? (
                   <div className="row gap-sm proj-edit">
-                    <Input value={editPname} onChange={(_, d) => setEditPname(d.value)} placeholder="项目名" className="grow" />
+                    <Input value={editPname} onChange={(e) => setEditPname(e.target.value)} placeholder="项目名" className="grow" />
                     <input type="color" value={editPcolor} onChange={(e) => setEditPcolor(e.target.value)} className="color-input" aria-label="颜色" />
-                    <Input value={editPkW} onChange={(_, d) => setEditPkW(d.value)} placeholder="关键词" className="grow" />
-                    <Button size="small" appearance="primary" onClick={() => void saveEditProject()}>保存</Button>
-                    <Button size="small" onClick={() => setEditPid(null)}>取消</Button>
+                    <Input value={editPkW} onChange={(e) => setEditPkW(e.target.value)} placeholder="关键词" className="grow" />
+                    <Button size="sm" variant="primary" onClick={() => void saveEditProject()}>保存</Button>
+                    <Button size="sm" onClick={() => setEditPid(null)}>取消</Button>
                   </div>
                 ) : (
                   <>
                     {/* 项目行（可点击展开） */}
                     <div className={`proj-repo-head${isOpen ? ' open' : ''}`} onClick={() => toggleExpand(p.id)}>
-                      <span className="proj-repo-chevron">{isOpen ? <ChevronDownRegular /> : <ChevronRightRegular />}</span>
+                      <span className="proj-repo-chevron">{isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
                       <span className="proj-dot" style={{ background: p.color }} />
                       <span className="proj-name">{p.name}</span>
                       {p.keywords.length > 0 && <span className="subtle" style={{ fontSize: 11 }}>{p.keywords.join('，')}</span>}
                       {count > 0 && <span className="repo-count-badge">{count}</span>}
                       <span className="proj-repo-actions" onClick={(e) => e.stopPropagation()}>
-                        <button className="icon-btn" title="编辑" onClick={() => startEditProject(p.id, p.name, p.color, p.keywords)}><EditRegular /></button>
-                        <Switch checked={p.isActive} onChange={(_, d) => void updateProject(p.id, { name: p.name, color: p.color, keywords: p.keywords, isActive: d.checked, sortOrder: p.sortOrder })} />
+                        <button className="icon-btn" title="编辑" onClick={() => startEditProject(p.id, p.name, p.color, p.keywords)}><Pencil size={16} /></button>
+                        <Switch checked={p.isActive} onChange={(c) => void updateProject(p.id, { name: p.name, color: p.color, keywords: p.keywords, isActive: c, sortOrder: p.sortOrder })} />
                         <button className="icon-btn" title="删除" onClick={() => setConfirm({
                           title: `删除项目「${p.name}」？`,
                           message: '项目下的历史记录不会被删除，但会失去项目归类。确定删除？',
@@ -300,7 +304,7 @@ export function SettingsPage() {
                             void removeProject(p.id);
                             flash('已删除项目');
                           },
-                        })}><DeleteRegular /></button>
+                        })}><Trash2 size={16} /></button>
                       </span>
                     </div>
 
@@ -314,24 +318,24 @@ export function SettingsPage() {
                             <div key={r.id}>
                               {editRid === r.id ? (
                                 <div className="row gap-sm wrap repo-edit">
-                                  <Input value={editRpath} onChange={(_, d) => setEditRpath(d.value)} placeholder="仓库路径" className="grow" style={{ minWidth: 200 }} />
+                                  <Input value={editRpath} onChange={(e) => setEditRpath(e.target.value)} placeholder="仓库路径" className="grow" style={{ minWidth: 200 }} />
                                   <div style={{ width: 150 }}>
                                     <Select value={editRproj} onChange={setEditRproj} options={projSelectOptions} />
                                   </div>
-                                  <Input value={editRauthor} onChange={(_, d) => setEditRauthor(d.value)} placeholder="作者" style={{ width: 110 }} />
-                                  <Button size="small" appearance="primary" onClick={() => void saveEditRepo()}>保存</Button>
-                                  <Button size="small" onClick={() => setEditRid(null)}>取消</Button>
+                                  <Input value={editRauthor} onChange={(e) => setEditRauthor(e.target.value)} placeholder="作者" style={{ width: 110 }} />
+                                  <Button size="sm" variant="primary" onClick={() => void saveEditRepo()}>保存</Button>
+                                  <Button size="sm" onClick={() => setEditRid(null)}>取消</Button>
                                 </div>
                               ) : (
                                 <div className="repo-row">
                                   <span className="repo-path">{r.path}</span>
                                   {r.author && <span className="muted">@{r.author}</span>}
-                                  <button className="icon-btn" title="编辑" onClick={() => startEditRepo(r)}><EditRegular /></button>
+                                  <button className="icon-btn" title="编辑" onClick={() => startEditRepo(r)}><Pencil size={16} /></button>
                                   <button className="icon-btn" title="移除" onClick={() => setConfirm({
                             title: '移除该仓库？',
                             message: `将从配置中移除：${r.path}`,
                             onConfirm: () => { void removeRepo(r.id); flash('已移除仓库'); },
-                          })}><DeleteRegular /></button>
+                          })}><Trash2 size={16} /></button>
                                 </div>
                               )}
                             </div>
@@ -350,7 +354,7 @@ export function SettingsPage() {
           {(repoCountByProj['__none'] ?? 0) > 0 && (
             <div className="proj-repo-item">
               <div className={`proj-repo-head${expanded.has('__none') ? ' open' : ''}`} onClick={() => toggleExpand('__none')}>
-                <span className="proj-repo-chevron">{expanded.has('__none') ? <ChevronDownRegular /> : <ChevronRightRegular />}</span>
+                <span className="proj-repo-chevron">{expanded.has('__none') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
                 <span className="proj-dot" style={{ background: 'var(--text-3)' }} />
                 <span className="proj-name muted">未映射项目</span>
                 <span className="repo-count-badge">{repoCountByProj['__none']}</span>
@@ -361,22 +365,22 @@ export function SettingsPage() {
                     <div key={r.id}>
                       {editRid === r.id ? (
                         <div className="row gap-sm wrap repo-edit">
-                          <Input value={editRpath} onChange={(_, d) => setEditRpath(d.value)} placeholder="仓库路径" className="grow" style={{ minWidth: 200 }} />
+                          <Input value={editRpath} onChange={(e) => setEditRpath(e.target.value)} placeholder="仓库路径" className="grow" style={{ minWidth: 200 }} />
                           <div style={{ width: 150 }}><Select value={editRproj} onChange={setEditRproj} options={projSelectOptions} /></div>
-                          <Input value={editRauthor} onChange={(_, d) => setEditRauthor(d.value)} placeholder="作者" style={{ width: 110 }} />
-                          <Button size="small" appearance="primary" onClick={() => void saveEditRepo()}>保存</Button>
-                          <Button size="small" onClick={() => setEditRid(null)}>取消</Button>
+                          <Input value={editRauthor} onChange={(e) => setEditRauthor(e.target.value)} placeholder="作者" style={{ width: 110 }} />
+                          <Button size="sm" variant="primary" onClick={() => void saveEditRepo()}>保存</Button>
+                          <Button size="sm" onClick={() => setEditRid(null)}>取消</Button>
                         </div>
                       ) : (
                         <div className="repo-row">
                           <span className="repo-path">{r.path}</span>
                           {r.author && <span className="muted">@{r.author}</span>}
-                          <button className="icon-btn" title="编辑" onClick={() => startEditRepo(r)}><EditRegular /></button>
+                          <button className="icon-btn" title="编辑" onClick={() => startEditRepo(r)}><Pencil size={16} /></button>
                           <button className="icon-btn" title="移除" onClick={() => setConfirm({
                             title: '移除该仓库？',
                             message: `将从配置中移除：${r.path}`,
                             onConfirm: () => { void removeRepo(r.id); flash('已移除仓库'); },
-                          })}><DeleteRegular /></button>
+                          })}><Trash2 size={16} /></button>
                         </div>
                       )}
                     </div>
@@ -390,14 +394,14 @@ export function SettingsPage() {
         {/* 新建项目（放最下面）：项目信息 + 可选仓库路径，点「新建项目」一次建好 */}
         <div className="proj-add" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div className="row gap-sm">
-            <Input value={pname} onChange={(_, d) => setPname(d.value)} placeholder="项目名（必填）" className="grow" />
+            <Input value={pname} onChange={(e) => setPname(e.target.value)} placeholder="项目名（必填）" className="grow" />
             <input type="color" value={pcolor} onChange={(e) => setPcolor(e.target.value)} className="color-input" aria-label="颜色" title="项目颜色" />
-            <Input value={pkw} onChange={(_, d) => setPkw(d.value)} placeholder="关键词（可选，逗号分隔）" style={{ width: 220 }} />
+            <Input value={pkw} onChange={(e) => setPkw(e.target.value)} placeholder="关键词（可选，逗号分隔）" style={{ width: 220 }} />
           </div>
           <textarea className="sel" value={newRepoPaths} onChange={(e) => setNewRepoPaths(e.target.value)}
             placeholder="关联仓库路径（可选，每行一个，与本项目一起建好）：如 D:\\code\\pcs-user" rows={2} style={{ width: '100%' }} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button appearance="primary" icon={<AddRegular />} onClick={() => void addProject()}>新建项目</Button>
+            <Button variant="primary" icon={<Plus size={14} />} onClick={() => void addProject()}>新建项目</Button>
           </div>
         </div>
       </section>
@@ -447,12 +451,12 @@ function ReportTemplateSection() {
             <span className="proj-name">{t.name}</span>
             {t.isDefault && <span className="chip" style={{ fontSize: 10 }}>默认</span>}
             <span className="muted proj-kw">{t.body.slice(0, 60).replace(/\n/g, ' ')}…</span>
-            <button className="icon-btn" title="编辑" onClick={() => { setEditingId(t.id); setTplName(t.name); setTplBody(t.body); setTplOpen(true); }}><EditRegular /></button>
-            <button className="icon-btn" title="删除" onClick={() => setDelId(t.id)}><DeleteRegular /></button>
+            <button className="icon-btn" title="编辑" onClick={() => { setEditingId(t.id); setTplName(t.name); setTplBody(t.body); setTplOpen(true); }}><Pencil size={16} /></button>
+            <button className="icon-btn" title="删除" onClick={() => setDelId(t.id)}><Trash2 size={16} /></button>
           </div>
         ))}
       </div>
-      <Button size="small" icon={<AddRegular />} onClick={() => { setEditingId(undefined); setTplName(''); setTplBody(''); setTplOpen(true); }} style={{ marginTop: 8 }}>新建模板</Button>
+      <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditingId(undefined); setTplName(''); setTplBody(''); setTplOpen(true); }} style={{ marginTop: 8 }}>新建模板</Button>
 
       {tplOpen && (
         <div className="modal-mask" onClick={() => setTplOpen(false)}>
@@ -462,8 +466,8 @@ function ReportTemplateSection() {
             <textarea className="sel" style={{ minHeight: 200, resize: 'vertical' }} value={tplBody} onChange={(e) => setTplBody(e.target.value)}
               placeholder="粘贴一份你满意的报告作为范例，AI 会模仿其格式和语气" />
             <div className="row gap-sm" style={{ justifyContent: 'flex-end' }}>
-              <Button size="small" onClick={() => setTplOpen(false)}>取消</Button>
-              <Button size="small" appearance="primary" onClick={() => void save()}>保存</Button>
+              <Button size="sm" onClick={() => setTplOpen(false)}>取消</Button>
+              <Button size="sm" variant="primary" onClick={() => void save()}>保存</Button>
             </div>
           </div>
         </div>
@@ -500,7 +504,7 @@ function LlmTestButton({ config }: { config: LlmConfig }) {
 
   return (
     <div className="row gap-sm">
-      <Button size="small" onClick={() => void test()} disabled={status === 'testing'}>
+      <Button size="sm" onClick={() => void test()} disabled={status === 'testing'}>
         {status === 'testing' ? '测试中…' : '测试连接'}
       </Button>
       {status === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>✓ {msg}</span>}
@@ -542,30 +546,30 @@ function ChoerodonSection({ settings, patch, flash }: { settings: AppSettings; p
       <h3 className="set-h">猪齿鱼对接 <HelpTip text="把工作日志自动上报到猪齿鱼系统。公司专属功能，不进开源仓库。需从浏览器 F12 抓 /oauth/login 请求体里 password= 后的加密密码(base64)。" /></h3>
       <div className="set-row">
         <div className="set-label"><span>启用</span></div>
-        <Switch checked={!!c} onChange={(_, d) => void patch({ choerodon: d.checked ? (c ?? { baseUrl: 'https://api.choerodon.com.cn', username: '', encryptedPassword: '', orgId: '' }) : null })} />
+        <Switch checked={!!c} onChange={(on) => void patch({ choerodon: on ? (c ?? { baseUrl: 'https://api.choerodon.com.cn', username: '', encryptedPassword: '', orgId: '' }) : null })} />
       </div>
       {c && (
         <>
           <div className="set-row">
             <div className="set-label"><span>API 地址</span></div>
-            <Input value={c.baseUrl} onChange={(_, d) => patchC({ baseUrl: d.value })} className="grow" />
+            <Input value={c.baseUrl} onChange={(e) => patchC({ baseUrl: e.target.value })} className="grow" />
           </div>
           <div className="set-row">
             <div className="set-label"><span>用户名（邮箱）</span></div>
-            <Input value={c.username} onChange={(_, d) => patchC({ username: d.value })} className="grow" placeholder="如 huanglin@shac.com.cn" />
+            <Input value={c.username} onChange={(e) => patchC({ username: e.target.value })} className="grow" placeholder="如 huanglin@shac.com.cn" />
           </div>
           <div className="set-row">
             <div className="set-label"><span>加密密码</span><HelpTip text="F12 → Network → POST /oauth/login → Payload → password= 后面的值(base64，含%3D%3D)" /></div>
-            <Input type="password" value={c.encryptedPassword} onChange={(_, d) => patchC({ encryptedPassword: d.value })} className="grow" placeholder="GZ1Brj...%3D%3D" />
+            <Input type="password" value={c.encryptedPassword} onChange={(e) => patchC({ encryptedPassword: e.target.value })} className="grow" placeholder="GZ1Brj...%3D%3D" />
           </div>
           <div className="set-row">
             <div className="set-label"><span>组织 ID</span><HelpTip text="留空则登录后自动回填" /></div>
-            <Input value={c.orgId} onChange={(_, d) => patchC({ orgId: d.value })} className="grow" placeholder="自动回填" />
+            <Input value={c.orgId} onChange={(e) => patchC({ orgId: e.target.value })} className="grow" placeholder="自动回填" />
           </div>
           <div className="set-row">
             <div className="set-label"><span>连接测试</span></div>
             <div className="row gap-sm">
-              <Button size="small" onClick={() => void testConnection()} disabled={testStatus === 'testing'}>
+              <Button size="sm" onClick={() => void testConnection()} disabled={testStatus === 'testing'}>
                 {testStatus === 'testing' ? '测试中…' : '测试连接'}
               </Button>
               {testStatus === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>{testMsg}</span>}
@@ -584,12 +588,12 @@ function RepoAdder({ projectId, onAdd }: { projectId: string; onAdd: (projectId:
   const [author, setAuthor] = useState('');
   return (
     <div className="row gap-sm" style={{ marginTop: 6 }}>
-      <Input value={path} onChange={(_, d) => setPath(d.value)} placeholder="关联仓库路径，如 D:\\code\\xxx" className="grow" />
-      <Input value={author} onChange={(_, d) => setAuthor(d.value)} placeholder="作者(可选)" style={{ width: 120 }} />
+      <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="关联仓库路径，如 D:\\code\\xxx" className="grow" />
+      <Input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="作者(可选)" style={{ width: 120 }} />
       <Button
-        size="small"
-        appearance="primary"
-        icon={<AddRegular />}
+        size="sm"
+        variant="primary"
+        icon={<Plus size={14} />}
         onClick={() => { if (path.trim()) { onAdd(projectId, path, author); setPath(''); setAuthor(''); } }}
       >
         关联

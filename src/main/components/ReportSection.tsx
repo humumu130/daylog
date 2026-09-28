@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Spinner } from '@fluentui/react-components';
-import { CopyRegular } from '@fluentui/react-icons';
+import { Copy } from 'lucide-react';
+import { Button, Spinner } from '../../ui';
 import * as db from '../../services/db';
 import { copyText } from '../../services/clipboard';
 import type { LlmConfig, Project, Report, ReportTemplate } from '../../types/models';
@@ -167,20 +167,20 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
         {reports.length > 0 && <span className="muted" style={{ fontSize: 11 }}>{reports.length} 份</span>}
         <div className="rpt-actions">
           {loading ? (
-            <Spinner size="tiny" />
+            <Spinner size="sm" />
           ) : editing ? (
             <>
-              <Button size="small" appearance="primary" onClick={() => void save()}>保存</Button>
-              <Button size="small" onClick={() => { setEditing(false); setDraft(''); }}>取消</Button>
+              <Button size="sm" variant="primary" onClick={() => void save()}>保存</Button>
+              <Button size="sm" onClick={() => { setEditing(false); setDraft(''); }}>取消</Button>
             </>
           ) : (
             <>
-              <Button size="small" appearance="subtle" onClick={() => { setDraft(latest?.body ?? ''); setEditing(true); }}>
+              <Button size="sm" variant="ghost" onClick={() => { setDraft(latest?.body ?? ''); setEditing(true); }}>
                 {reports.length > 0 ? '编辑' : '粘贴文本'}
               </Button>
-              <Button size="small" appearance="subtle" icon={<CopyRegular />} style={{ minWidth: 108 }} onClick={() => void copyText(latest?.body ?? '')} disabled={reports.length === 0} title="复制 Markdown 原文">复制 Markdown</Button>
-              <Button size="small" appearance="subtle" icon={<CopyRegular />} style={{ minWidth: 108 }} onClick={() => void copyText(toPlainText(latest?.body ?? ''))} disabled={reports.length === 0} title="复制纯文本（去掉格式）">复制纯文本</Button>
-              <Button size="small" appearance="primary" style={{ minWidth: 100 }} onClick={() => void generate()} disabled={!llmConfig.apiKey && llmConfig.kind !== 'claude-code'}>
+              <Button size="sm" variant="ghost" icon={<Copy size={14} />} style={{ minWidth: 108 }} onClick={() => void copyText(latest?.body ?? '')} disabled={reports.length === 0} title="复制 Markdown 原文">复制 Markdown</Button>
+              <Button size="sm" variant="ghost" icon={<Copy size={14} />} style={{ minWidth: 108 }} onClick={() => void copyText(toPlainText(latest?.body ?? ''))} disabled={reports.length === 0} title="复制纯文本（去掉格式）">复制纯文本</Button>
+              <Button size="sm" variant="primary" style={{ minWidth: 100 }} onClick={() => void generate()} disabled={!llmConfig.apiKey && llmConfig.kind !== 'claude-code'}>
                 {reports.length > 0 ? '重新生成' : `生成${title}`}
               </Button>
             </>

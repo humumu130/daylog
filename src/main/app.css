@@ -68,6 +68,30 @@
   align-items: center;
 }
 
+/* 图标+文字模式（设置·通用 sidebarLabels；默认纯图标保持密度） */
+.rail.labels {
+  width: 148px;
+  align-items: stretch;
+  padding: 18px 10px 12px;
+}
+.rail.labels .rail-brand {
+  text-align: center;
+}
+.rail.labels .rail-nav,
+.rail.labels .rail-foot {
+  align-items: stretch;
+}
+.rail.labels .rail-item {
+  width: auto;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 13px;
+}
+.rail-label {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 /* ============ 主内容区 ============ */
 .app-content {
   flex: 1;

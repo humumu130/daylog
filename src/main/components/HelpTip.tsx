@@ -1,4 +1,4 @@
-import { QuestionCircleRegular } from '@fluentui/react-icons';
+import { HelpCircle } from 'lucide-react';
 
 /** 小问号图标，鼠标悬停显示提示文字（替代冗长的 subtle 描述） */
 export function HelpTip({ text }: { text: string }) {
@@ -7,7 +7,7 @@ export function HelpTip({ text }: { text: string }) {
       title={text}
       style={{ marginLeft: 4, cursor: 'help', color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' }}
     >
-      <QuestionCircleRegular style={{ fontSize: 12 }} />
+      <HelpCircle size={12} />
     </span>
   );
 }

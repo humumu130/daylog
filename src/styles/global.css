@@ -36,24 +36,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* FluentProvider 注入的设计令牌在该元素及其子树生效。
-   把自定义变量映射到 Fluent 令牌，使其自动跟随明暗主题（:root 里的浅色值仅作 fallback）。 */
+/* P2 桥接层：旧语义变量映射到 --dl- token（跟随 html[data-theme] 明暗切换）。
+   pages.css/components.css 的旧类继续可用；P9 重做页面后整体退役。 */
 .app-shell {
   min-height: 100%;
-  background: var(--colorNeutralBackground2, #fafafa);
-  color: var(--colorNeutralForeground1);
-  --app-bg: var(--colorNeutralBackground2);
-  --surface: var(--colorNeutralBackground1);
-  --text: var(--colorNeutralForeground1);
-  --text-1: var(--colorNeutralForeground1);
-  --text-2: var(--colorNeutralForeground2);
-  --text-3: var(--colorNeutralForeground3);
-  --accent: var(--colorBrandForeground1);
-  --accent-soft: var(--colorBrandBackground2);
-  --border: var(--colorNeutralStroke2);
-  --border-soft: var(--colorNeutralStroke3);
-  --shadow-soft: var(--shadow2);
-  --shadow-pop: var(--shadow28);
+  background: var(--dl-bg-base);
+  color: var(--dl-fg-1);
+  --app-bg: var(--dl-bg-base);
+  --surface: var(--dl-bg-surface);
+  --text: var(--dl-fg-1);
+  --text-1: var(--dl-fg-1);
+  --text-2: var(--dl-fg-2);
+  --text-3: var(--dl-fg-3);
+  --accent: var(--dl-accent);
+  --accent-soft: var(--dl-accent-subtle);
+  --border: var(--dl-border-1);
+  --border-soft: var(--dl-border-2);
+  --shadow-soft: var(--dl-shadow-sm);
+  --shadow-pop: var(--dl-shadow-lg);
 }
 
 /* 无边框窗口拖拽区 */
@@ -68,28 +68,14 @@ body {
   app-region: no-drag;
 }
 
-/* ============ 滚动条 ============ */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--colorNeutralStroke2, #d1d1d1);
-  border-radius: 6px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--colorNeutralStroke1, #b3b3b3);
-  background-clip: content-box;
-}
+/* 滚动条：由 base.css 统一接管（--dl- token，明暗自适应） */
 
 /* ============ 通用工具类 ============ */
 .muted {
-  color: var(--colorNeutralForeground2);
+  color: var(--text-2);
 }
 .subtle {
-  color: var(--colorNeutralForeground3);
+  color: var(--text-3);
 }
 .row {
   display: flex;
@@ -135,7 +121,7 @@ body {
   letter-spacing: 0.2px;
 }
 .empty {
-  color: var(--colorNeutralForeground3);
+  color: var(--text-3);
   font-size: 13px;
   padding: 24px;
   text-align: center;
@@ -143,11 +129,11 @@ body {
 
 /* 卡片表面 */
 .card {
-  background: var(--colorNeutralBackground1, #fff);
-  border: 1px solid var(--colorNeutralStroke2, #e5e5e5);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
-  box-shadow: var(--shadow2);
+  box-shadow: var(--shadow-soft);
 }
 
 /* 小标签徽章 */
@@ -158,19 +144,19 @@ body {
   padding: 3px 11px;
   border-radius: 999px;
   font-size: 12px;
-  border: 1px solid var(--colorNeutralStroke2, #e5e5e5);
-  background: var(--colorNeutralBackground1, #fff);
-  color: var(--colorNeutralForeground2);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
   cursor: pointer;
   user-select: none;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .chip:hover {
-  background: var(--colorNeutralBackground1Hover, #f5f5f5);
+  background: var(--dl-bg-hover);
 }
 .chip.active {
-  background: var(--colorBrandBackground2, #e8eefd);
-  border-color: var(--colorBrandStroke1, #6a9cff);
-  color: var(--colorBrandForeground1, #0a53cb);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
 }

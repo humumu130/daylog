@@ -22,6 +22,12 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        // 窗口位置/尺寸记忆：仅主窗与待办浮窗；快速记录是热键唤出的浮条，不参与恢复
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["quick-capture"])
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             commands::git_log,
             commands::run_claude,

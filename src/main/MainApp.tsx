@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { FluentProvider, Spinner } from '@fluentui/react-components';
-import { darkTheme, lightTheme } from '../styles/theme';
+import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Spinner } from '../ui';
+import { applyTheme } from '../styles/applyTheme';
+import { NAV } from './nav';
 import { Sidebar } from './Sidebar';
 import { WindowControls } from './components/WindowControls';
 import { TodayPage } from './pages/TodayPage';
@@ -20,10 +21,30 @@ import { useRecordsStore } from '../stores/useRecordsStore';
 import { autoBackup } from '../services/backup';
 import { useUiStore } from '../stores/useUiStore';
 import { startReminder } from '../services/reminder';
-import { SearchOverlay } from './components/SearchOverlay';
+import { CommandPalette } from './components/CommandPalette';
+import { ToastHost } from './components/UndoToast';
 import './app.css';
 import './pages.css';
 import './components/components.css';
+
+/** ⌘/Ctrl+N 页面快捷键（NAV 注册表驱动，需在 Router 内拿 navigate） */
+function NavHotkeys() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && /^[1-9]$/.test(e.key)) {
+        const item = NAV.find((n) => n.hotkeyIndex === Number(e.key));
+        if (item) {
+          e.preventDefault();
+          navigate(item.to);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate]);
+  return null;
+}
 
 export function MainApp() {
   const settings = useSettingsStore((s) => s.settings);
@@ -33,7 +54,10 @@ export function MainApp() {
   const fetchRecords = useRecordsStore((s) => s.fetch);
   const [ready, setReady] = useState(false);
 
-  const theme = settings.theme === 'dark' ? darkTheme : lightTheme;
+  // 主题单一通道：html[data-theme] 驱动 --dl- token（patch 侧已广播其它窗口）
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
 
   // 初始化：加载设置、拉取基础数据、应用自启
   useEffect(() => {
@@ -99,7 +123,7 @@ export function MainApp() {
     };
   }, [ready, fetchTasks, fetchRecords]);
 
-  // 全局搜索快捷键 Ctrl/Cmd+K
+  // 命令面板快捷键 Ctrl/Cmd+K
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -112,8 +136,9 @@ export function MainApp() {
   }, []);
 
   return (
-    <FluentProvider theme={theme} className="app-shell app-layout">
+    <div className="app-shell app-layout">
       <HashRouter>
+        <NavHotkeys />
         <Sidebar />
         <div className="main-col">
           <div className="titlebar" data-tauri-drag-region>
@@ -135,8 +160,9 @@ export function MainApp() {
           )}
           </main>
         </div>
-        <SearchOverlay />
+        <CommandPalette />
+        <ToastHost />
       </HashRouter>
-    </FluentProvider>
+    </div>
   );
 }

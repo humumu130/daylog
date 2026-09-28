@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDownRegular } from '@fluentui/react-icons';
+import { ChevronDown } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -14,7 +14,7 @@ interface Props {
   className?: string;
 }
 
-/** 自定义下拉：不依赖 Fluent 弹出层（避免白屏），也不丑陋（非原生 select）。内联定位，点击外部收起。 */
+/** 自定义下拉：不依赖组件库弹出层（避免白屏），也不丑陋（非原生 select）。内联定位，点击外部收起。 */
 export function Select({ value, options, onChange, placeholder, className }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -33,7 +33,7 @@ export function Select({ value, options, onChange, placeholder, className }: Pro
     <div className={`select ${className ?? ''}`} ref={ref}>
       <button type="button" className="select-trigger" onClick={() => setOpen((o) => !o)}>
         <span className={selected ? '' : 'select-placeholder'}>{selected?.label ?? placeholder ?? '请选择'}</span>
-        <ChevronDownRegular className={`select-chevron${open ? ' open' : ''}`} />
+        <ChevronDown size={12} className={`select-chevron${open ? ' open' : ''}`} />
       </button>
       {open && (
         <div className="select-popover">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRegular, ArrowRightRegular, CloudAddRegular } from '@fluentui/react-icons';
+import { ArrowLeft, ArrowRight, CloudUpload } from 'lucide-react';
 import { CaptureBar } from '../components/CaptureBar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TimelineEntry } from '../components/TimelineEntry';
@@ -68,11 +68,11 @@ export function TodayPage() {
         <div className="th-left">
           <div className="row gap-sm">
             <button className="icon-btn" onClick={() => setDay((d) => addDays(d, -1))} title="前一天">
-              <ArrowLeftRegular />
+              <ArrowLeft size={16} />
             </button>
             <h1 className="today-date-big">{isToday ? '今天' : formatYMDChinese(day)}</h1>
             <button className="icon-btn" onClick={() => setDay((d) => addDays(d, 1))} disabled={day >= today} title="后一天">
-              <ArrowRightRegular />
+              <ArrowRight size={16} />
             </button>
           </div>
           <div className="muted today-sub">
@@ -82,7 +82,7 @@ export function TodayPage() {
         <div className="today-head-right">
           {choerodonCfg && dayRecords.length > 0 && (
             <button className="today-action" title="上报当日记录到猪齿鱼" onClick={() => setChoerodonOpen(true)}>
-              <CloudAddRegular /> 上报猪齿鱼
+              <CloudUpload size={14} /> 上报猪齿鱼
             </button>
           )}
           <div className="today-stat-card">

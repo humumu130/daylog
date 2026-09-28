@@ -1,4 +1,4 @@
-/* 日迹 UI 原语统一出口（替代 @fluentui/react-components） */
+/* 日迹 UI 原语统一出口（自有设计系统，--dl- token 驱动） */
 import './ui.css';
 
 export { Button, type ButtonProps } from './Button';

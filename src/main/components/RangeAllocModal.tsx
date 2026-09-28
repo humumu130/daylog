@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@fluentui/react-components';
+import { Button } from '../../ui';
 import * as db from '../../services/db';
 import { allocate, type AllocResult } from '../../services/allocate';
 import { addDays, todayYMD } from '../../utils/date';
@@ -107,8 +107,8 @@ export function RangeAllocModal({ open, selected, dailyCap, onClose, onImport }:
         )}
 
         <div className="row gap-sm" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
-          <Button size="small" onClick={onClose}>取消</Button>
-          <Button size="small" appearance="primary" onClick={confirm} disabled={result.days.length === 0 || selected.length === 0}>
+          <Button size="sm" onClick={onClose}>取消</Button>
+          <Button size="sm" variant="primary" onClick={confirm} disabled={result.days.length === 0 || selected.length === 0}>
             确认导入 ({selected.length})
           </Button>
         </div>

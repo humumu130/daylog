@@ -10,8 +10,6 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@fluentui/react-components": "^9.74.4",
-    "@fluentui/react-icons": "^2.0.334",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",

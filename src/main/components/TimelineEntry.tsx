@@ -1,4 +1,4 @@
-import { DeleteRegular, EditRegular } from '@fluentui/react-icons';
+import { Pencil, Trash2 } from 'lucide-react';
 import type { Project, Task, WorkRecord } from '../../types/models';
 import { formatHM } from '../../utils/halfDay';
 
@@ -32,10 +32,10 @@ export function TimelineEntry({ record, project, onEdit, onDelete }: Props) {
         {record.durationMin != null && <span className="tl-dur">{formatHM(record.durationMin)}</span>}
         <span className="tl-actions">
           <button className="icon-btn" title="编辑" onClick={(e) => { e.stopPropagation(); onEdit(record); }}>
-            <EditRegular />
+            <Pencil size={16} />
           </button>
           <button className="icon-btn" title="删除" onClick={(e) => { e.stopPropagation(); onDelete(record.id); }}>
-            <DeleteRegular />
+            <Trash2 size={16} />
           </button>
         </span>
       </div>

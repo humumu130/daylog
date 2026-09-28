@@ -14,6 +14,7 @@ export function IconButton({
   variant = 'default',
   children,
   type = 'button',
+  className,
   ...rest
 }: IconButtonProps) {
   return (
@@ -23,6 +24,7 @@ export function IconButton({
       aria-label={title}
       data-size={size}
       data-variant={variant}
+      className={className ? `dl-iconbtn ${className}` : 'dl-iconbtn'}
       {...rest}
     >
       {children}

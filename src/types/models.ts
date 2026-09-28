@@ -106,6 +106,8 @@ export interface AppSettings {
   remindMinMinutes: number;
   /** 单日工时上限（小时）：Git 区间分配时遵守，默认 8 */
   dailyCapHours: number;
+  /** 侧栏「图标+文字」模式（默认纯图标保持密度，非开发者兜底） */
+  sidebarLabels: boolean;
   /** 自动备份：开关 / 保留份数 / 自定义目录（空=默认 com.worklog.app/backups） */
   autoBackupEnabled: boolean;
   autoBackupKeep: number;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Input } from '@fluentui/react-components';
+import { Button, Input } from '../../ui';
 
 interface Props {
   value: string;
@@ -36,7 +36,7 @@ export function HotkeyField({ value, onCommit }: Props) {
   return (
     <div className="row gap-sm">
       <Input value={value} readOnly className="hotkey-display" />
-      <Button onClick={() => setCapturing(true)} appearance={capturing ? 'primary' : 'secondary'}>
+      <Button onClick={() => setCapturing(true)} variant={capturing ? 'primary' : 'default'}>
         {capturing ? '按下组合键…' : '重新设置'}
       </Button>
     </div>

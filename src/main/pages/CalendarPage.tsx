@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@fluentui/react-components';
-import { ArrowLeftRegular, ArrowRightRegular, CopyRegular } from '@fluentui/react-icons';
+import { Button, IconButton } from '../../ui';
+import { ArrowLeft, ArrowRight, Copy } from 'lucide-react';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useTasksStore } from '../../stores/useTasksStore';
@@ -89,16 +89,16 @@ export function CalendarPage() {
           </div>
           {viewMode === 'month' ? (
             <>
-              <Button icon={<ArrowLeftRegular />} onClick={() => setYm((v) => shiftMonth(v, -1))} />
+              <IconButton title="上一月" onClick={() => setYm((v) => shiftMonth(v, -1))}><ArrowLeft size={16} /></IconButton>
               <Button onClick={() => { setYm(currentYM()); setSelectedDay(todayYMD()); }}>本月</Button>
-              <Button icon={<ArrowRightRegular />} onClick={() => setYm((v) => shiftMonth(v, 1))} />
-              <Button icon={<CopyRegular />} onClick={() => void onCopyMonth()}>复制日报</Button>
+              <IconButton title="下一月" onClick={() => setYm((v) => shiftMonth(v, 1))}><ArrowRight size={16} /></IconButton>
+              <Button icon={<Copy size={14} />} onClick={() => void onCopyMonth()}>复制日报</Button>
             </>
           ) : (
             <>
-              <Button icon={<ArrowLeftRegular />} onClick={() => setYear((y) => String(Number(y) - 1))} />
+              <IconButton title="上一年" onClick={() => setYear((y) => String(Number(y) - 1))}><ArrowLeft size={16} /></IconButton>
               <Button onClick={() => setYear(currentYM().slice(0, 4))}>今年</Button>
-              <Button icon={<ArrowRightRegular />} onClick={() => setYear((y) => String(Number(y) + 1))} />
+              <IconButton title="下一年" onClick={() => setYear((y) => String(Number(y) + 1))}><ArrowRight size={16} /></IconButton>
             </>
           )}
         </div>

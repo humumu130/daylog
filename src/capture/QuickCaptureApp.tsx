@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FluentProvider, Input } from '@fluentui/react-components';
-import { DismissRegular } from '@fluentui/react-icons';
+import { X } from 'lucide-react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { darkTheme, lightTheme } from '../styles/theme';
+import { Input } from '../ui';
+import { applyTheme } from '../styles/applyTheme';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
@@ -23,12 +23,11 @@ export function QuickCaptureApp() {
   const tasks = useTasksStore((s) => s.tasks);
   const fetchTasks = useTasksStore((s) => s.fetch);
 
-  const [theme, setTheme] = useState(lightTheme);
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void loadSettings().then((s) => setTheme(s.theme === 'dark' ? darkTheme : lightTheme));
+    void loadSettings().then((s) => applyTheme(s.theme));
     void fetchProjects();
     void fetchTasks();
     const w = getCurrentWebviewWindow();
@@ -36,7 +35,7 @@ export function QuickCaptureApp() {
       if (f) inputRef.current?.focus();
       else void hideQuickCapture();
     });
-    const ut = onTheme((t) => setTheme(t === 'dark' ? darkTheme : lightTheme));
+    const ut = onTheme((t) => applyTheme(t));
     return () => {
       void p.then((fn) => fn());
       void ut.then((fn) => fn());
@@ -102,21 +101,20 @@ export function QuickCaptureApp() {
   const projName = (id: string | null) => (id ? projects.find((p) => p.id === id)?.name : undefined);
 
   return (
-    <FluentProvider theme={theme} className="app-shell capture-root">
+    <div className="app-shell capture-root">
       <div className="capture-header" data-tauri-drag-region>
         <span className="capture-title">快速记录 · {settings.hotkey}</span>
-        <button className="qc-close" onClick={() => void hideQuickCapture()}>
-          <DismissRegular />
+        <button className="qc-close" title="关闭" onClick={() => void hideQuickCapture()}>
+          <X size={16} />
         </button>
       </div>
       <div className="capture-body">
         <Input
           ref={inputRef}
           value={text}
-          onChange={(_, d) => setText(d.value)}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="处理 xxbug 8h  （; 多条）"
-          size="large"
           className="capture-input"
         />
         <div className="capture-chips">
@@ -125,6 +123,6 @@ export function QuickCaptureApp() {
           {count > 1 && <span className="chip count-chip">{count} 条</span>}
         </div>
       </div>
-    </FluentProvider>
+    </div>
   );
 }

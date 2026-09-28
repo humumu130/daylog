@@ -4,8 +4,9 @@ import { QuickCaptureApp } from './capture/QuickCaptureApp';
 import { MainApp } from './main/MainApp';
 import { WidgetApp } from './widget/WidgetApp';
 import { ErrorBoundary } from './ErrorBoundary';
-import './styles/tokens.css'; // --dl- 设计 token（P1：纯变量零视觉影响，P2 换壳后全面接管）
-import './styles/global.css';
+import './styles/tokens.css'; // --dl- 设计 token
+import './styles/base.css'; // reset/滚动条/焦点环（P2 起接管基础层）
+import './styles/global.css'; // 旧样式（P9 清理）
 
 const label = getCurrentWebviewWindow().label;
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
