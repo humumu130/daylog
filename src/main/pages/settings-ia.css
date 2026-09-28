@@ -1,0 +1,86 @@
+/* ============================================================
+   设置页二级导航信息架构（P4）：左侧分区导航 + 右侧分区内容。
+   铁律同 ui.css：只引用 --dl-* token。
+   既有 set- / proj- / repo- 系样式仍在 pages.css，此处只做布局骨架。
+   ============================================================ */
+.set-layout {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: var(--dl-space-6);
+  align-items: start;
+}
+
+/* 左侧二级导航 */
+.set-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--dl-space-2);
+  background: var(--dl-bg-surface);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-lg);
+  box-shadow: var(--dl-shadow-sm);
+}
+.set-nav-item {
+  border: none;
+  background: transparent;
+  color: var(--dl-fg-2);
+  font-family: inherit;
+  font-size: var(--dl-text-sm);
+  line-height: 1.4;
+  text-align: left;
+  padding: var(--dl-space-2) var(--dl-space-3);
+  border-radius: var(--dl-radius-md);
+  cursor: pointer;
+  transition: background-color var(--dl-motion-fast) var(--dl-ease),
+    color var(--dl-motion-fast) var(--dl-ease);
+}
+.set-nav-item:hover {
+  background: var(--dl-bg-hover);
+  color: var(--dl-fg-1);
+}
+.set-nav-item.active {
+  background: var(--dl-accent-subtle);
+  color: var(--dl-accent);
+  font-weight: 600;
+}
+.set-nav-item:focus-visible {
+  outline: 2px solid var(--dl-accent);
+  outline-offset: 2px;
+}
+
+/* 右侧分区容器（同一时刻只渲染当前分区） */
+.set-panes {
+  min-width: 0;
+}
+
+/* 项目与目录·配置中心骨架：健康检查摘要条占位（无数据，仅预告） */
+.set-health-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-3) var(--dl-space-4);
+  margin-bottom: var(--dl-space-4);
+  background: var(--dl-bg-muted);
+  border: 1px dashed var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+}
+.set-health-text {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+}
+
+/* 窄窗口兜底：导航转横排，分区下移 */
+@media (max-width: 760px) {
+  .set-layout {
+    grid-template-columns: 1fr;
+  }
+  .set-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

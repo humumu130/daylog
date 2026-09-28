@@ -1,4 +1,4 @@
-import { CalendarRange, Clock, GitBranch, ListTodo, MoonStar, Settings, Zap } from 'lucide-react';
+import { CalendarRange, ChartLine, Clock, Inbox, ListTodo, MoonStar, Settings, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toggleQuickCapture, toggleWidget } from '../services/window';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -64,9 +64,10 @@ export const COMMANDS: Command[] = [
     },
   },
   { id: 'page-today', title: '今日', group: '页面', icon: Clock, hotkey: '⌘1', keywords: ['today'], run: (ctx) => ctx.navigate('/today') },
-  { id: 'page-calendar', title: '月历', group: '页面', icon: CalendarRange, hotkey: '⌘2', keywords: ['calendar', '月报'], run: (ctx) => ctx.navigate('/calendar') },
-  { id: 'page-git', title: 'Git', group: '页面', icon: GitBranch, hotkey: '⌘3', run: (ctx) => ctx.navigate('/git') },
-  { id: 'page-settings', title: '设置', group: '页面', icon: Settings, hotkey: '⌘4', keywords: ['settings'], run: (ctx) => ctx.navigate('/settings') },
+  { id: 'page-history', title: '月历', group: '页面', icon: CalendarRange, hotkey: '⌘2', keywords: ['calendar', '月历', '日历'], run: (ctx) => ctx.navigate('/history') },
+  { id: 'page-reports', title: '报告', group: '页面', icon: ChartLine, hotkey: '⌘3', keywords: ['report', '月报', '季报', '年报'], run: (ctx) => ctx.navigate('/reports') },
+  { id: 'page-collect', title: '采集中心', group: '页面', icon: Inbox, hotkey: '⌘4', keywords: ['collect', 'git', '导入', '采集'], run: (ctx) => ctx.navigate('/collect') },
+  { id: 'page-settings', title: '设置', group: '页面', icon: Settings, hotkey: '⌘5', keywords: ['settings'], run: (ctx) => ctx.navigate('/settings') },
   { id: 'day-today', title: '回到今天', sub: '今日页跳回当天', group: '跳转日期', icon: Clock, keywords: ['今天', 'today'], run: (ctx) => gotoDay(ctx, todayYMD()) },
   { id: 'day-yesterday', title: '昨天', group: '跳转日期', icon: Clock, keywords: ['昨天', 'yesterday'], run: (ctx) => gotoDay(ctx, addDays(todayYMD(), -1)) },
   { id: 'day-week-ago', title: '上周今天', group: '跳转日期', icon: Clock, keywords: ['上周'], run: (ctx) => gotoDay(ctx, addDays(todayYMD(), -7)) },

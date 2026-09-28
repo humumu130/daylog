@@ -1,0 +1,60 @@
+/* ============================================================
+   采集中心 CollectPage · 状态头样式（骨架）
+   铁律：只引用 --dl-* token。
+   git-* 与 RangeAllocModal 既有样式仍在 pages.css / components.css，不在此重复。
+   ============================================================ */
+
+/* 一行卡片式摘要条 */
+.collect-head {
+  display: flex;
+  gap: var(--dl-space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--dl-space-5);
+}
+
+/* 单个数据源卡片 */
+.collect-src {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-2);
+  padding: var(--dl-space-3) var(--dl-space-4);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  background: var(--dl-bg-surface);
+  box-shadow: var(--dl-shadow-sm);
+}
+
+/* 卡片标题行：图标 + 名称（+ 徽标） */
+.collect-src-title {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  font-size: var(--dl-text-md);
+  font-weight: 500;
+  color: var(--dl-fg-1);
+}
+
+.collect-src-icon {
+  color: var(--dl-fg-3);
+  flex-shrink: 0;
+}
+
+/* 摘要行：数字/状态 + 操作按钮（按钮靠右） */
+.collect-src-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+}
+
+.collect-src-meta .dl-btn {
+  margin-left: auto;
+}
+
+/* 占位卡（AI 会话源 / 待办采集，P5 接真数据前灰字占位） */
+.collect-src-meta.is-placeholder {
+  color: var(--dl-fg-3);
+}

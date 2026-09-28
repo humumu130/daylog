@@ -1,17 +1,19 @@
-import { CalendarRange, Clock, GitBranch, Settings } from 'lucide-react';
+import { CalendarRange, ChartLine, Clock, Inbox, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-/** 图标轨导航注册表：Sidebar 渲染 + ⌘1..N 快捷键共用（P4 拆报告/采集时在此扩至 5+） */
 export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  hotkeyIndex: number; // ⌘N 序号
+  /** ⌘/Ctrl+N 快捷键序号 */
+  hotkeyIndex: number;
 }
 
+/** 侧栏与 ⌘1..5 共用的页面注册表（P4 五路由） */
 export const NAV: NavItem[] = [
   { to: '/today', label: '今日', icon: Clock, hotkeyIndex: 1 },
-  { to: '/calendar', label: '月历', icon: CalendarRange, hotkeyIndex: 2 },
-  { to: '/git', label: 'Git', icon: GitBranch, hotkeyIndex: 3 },
-  { to: '/settings', label: '设置', icon: Settings, hotkeyIndex: 4 },
+  { to: '/history', label: '月历', icon: CalendarRange, hotkeyIndex: 2 },
+  { to: '/reports', label: '报告', icon: ChartLine, hotkeyIndex: 3 },
+  { to: '/collect', label: '采集', icon: Inbox, hotkeyIndex: 4 },
+  { to: '/settings', label: '设置', icon: Settings, hotkeyIndex: 5 },
 ];

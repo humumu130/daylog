@@ -687,3 +687,23 @@ textarea.sel {
 .git-hours-input { width: 60px; font-size: 13px; font-weight: 600; text-align: center; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); }
 .git-hours-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
 .git-existing-badge { font-size: 10px; background: var(--border); color: var(--text-3); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+
+/* ============ P4 报告页：期选择器工具条（--dl- token） ============ */
+.rpt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--dl-space-4);
+}
+.rpt-picker {
+  flex-wrap: wrap;
+}
+.rpt-ym {
+  font-size: var(--dl-text-md);
+  font-weight: 600;
+  color: var(--dl-fg-1);
+  min-width: 64px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

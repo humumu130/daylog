@@ -36,7 +36,7 @@ export function signatureOf(commits: { hash: string; repoId: string }[]): string
 
 /**
  * 智能整合状态放在 store（模块单例），**跨页面存活**：
- * 切走 GitPage 不会取消正在进行的整合，回来直接看结果；
+ * 切走采集页不会取消正在进行的整合，回来直接看结果；
  * 配合 consolidatedSignature 实现"提交没变就不重跑"。
  * 不持久化——关 app 后重开，raw 提交可能已变，缓存意义不大。
  */

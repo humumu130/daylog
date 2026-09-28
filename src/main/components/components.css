@@ -482,3 +482,57 @@
 .ci-wrap {
   display: grid;
 }
+
+/* ============ P4 月历升级：周合计列 / 热度底色 / 上报角标（--dl- token） ============ */
+.cal-weekhead {
+  grid-template-columns: repeat(7, 1fr) 52px;
+}
+.cal-week {
+  grid-template-columns: repeat(7, 1fr) 52px;
+}
+.cal-weeksum-head {
+  color: var(--dl-fg-3);
+}
+.cal-weeksum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-2);
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--dl-radius-sm);
+  background: var(--dl-bg-muted);
+}
+.cal-day-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.cal-day[data-heat='low'] {
+  background: color-mix(in srgb, var(--dl-accent) 5%, var(--dl-bg-surface));
+}
+.cal-day[data-heat='mid'] {
+  background: color-mix(in srgb, var(--dl-accent) 10%, var(--dl-bg-surface));
+}
+.cal-day[data-heat='high'] {
+  background: color-mix(in srgb, var(--dl-accent) 18%, var(--dl-bg-surface));
+  border-color: color-mix(in srgb, var(--dl-accent) 35%, var(--dl-border-1));
+}
+/* 选中态最后重申：热度底色不吞选中标识 */
+.cal-day.selected {
+  border-color: var(--dl-border-focus);
+  background: var(--dl-accent-subtle);
+}
+.cal-flag {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: var(--dl-radius-full);
+  background: var(--dl-success-subtle);
+  color: var(--dl-success);
+  font-weight: 700;
+}
+.cal-flag.manual {
+  background: var(--dl-warning-subtle);
+  color: var(--dl-warning);
+}

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Checkbox, Spinner } from '../../ui';
+import { useNavigate } from 'react-router-dom';
+import { FolderGit2, Inbox, MessagesSquare } from 'lucide-react';
+import { Badge, Button, Checkbox, Spinner } from '../../ui';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -9,6 +11,7 @@ import { notifyChanged } from '../../services/events';
 import { formatHours } from '../../utils/halfDay';
 import * as db from '../../services/db';
 import { RangeAllocModal, type SelectedItem } from '../components/RangeAllocModal';
+import './collect.css';
 
 type Period = 'today' | '7d' | '30d' | 'range';
 type AnnotatedCommit = GitCommit & { imported: boolean };
@@ -21,7 +24,8 @@ function cleanSubject(s: string): string {
   return t || s;
 }
 
-export function GitPage() {
+export function CollectPage() {
+  const navigate = useNavigate();
   const repos = useSettingsStore((s) => s.settings.repos);
   const gitMode = useSettingsStore((s) => s.settings.gitImportMode);
   const patchSettings = useSettingsStore((s) => s.patch);
@@ -229,10 +233,54 @@ export function GitPage() {
     void loadKnownHashes();
   }
 
+  // 采集中心状态头（骨架）：数据源摘要一行卡。AI 会话源/待办采集 P5 接真数据，现在只占位。
+  const collectHead = (
+    <div className="collect-head">
+      <div className="collect-src">
+        <div className="collect-src-title">
+          <FolderGit2 size={14} className="collect-src-icon" aria-hidden="true" />
+          <span>Git 仓库源</span>
+        </div>
+        <div className="collect-src-meta">
+          {repos.length} 个已配置仓库
+          <Button size="sm" variant="ghost" onClick={() => navigate('/settings')}>去设置 →</Button>
+        </div>
+      </div>
+      <div className="collect-src">
+        <div className="collect-src-title">
+          <MessagesSquare size={14} className="collect-src-icon" aria-hidden="true" />
+          <span>AI 会话源</span>
+          <Badge tone="neutral">预告</Badge>
+        </div>
+        <div className="collect-src-meta is-placeholder">即将上线</div>
+      </div>
+      <div className="collect-src">
+        <div className="collect-src-title">
+          <Inbox size={14} className="collect-src-icon" aria-hidden="true" />
+          <span>待办采集</span>
+          <Badge tone="neutral">预告</Badge>
+        </div>
+        <div className="collect-src-meta is-placeholder">即将上线</div>
+      </div>
+    </div>
+  );
+
   if (repos.length === 0) {
     return (
-      <div className="empty" style={{ padding: 56 }}>
-        还没配置 Git 仓库。去「设置 → 项目与仓库」添加本地仓库路径（关联到项目），这里会自动扫描提交供审核导入。
+      <div>
+        <div className="page-head">
+          <div className="left">
+            <h2 className="section-title">采集中心</h2>
+            <span className="muted">Git 提交与 AI 会话的审核入库</span>
+          </div>
+        </div>
+        {collectHead}
+        <div className="empty" style={{ padding: 56 }}>
+          还没有数据源。Git 仓库在设置·项目与仓库添加后，这里自动扫描供审核导入。
+          <div style={{ marginTop: 12 }}>
+            <Button variant="primary" onClick={() => navigate('/settings')}>去设置</Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -258,8 +306,8 @@ export function GitPage() {
     <div>
       <div className="page-head">
         <div className="left">
-          <h2 className="section-title">Git 扫描</h2>
-          <span className="muted">从 Git 提交导入工作日志</span>
+          <h2 className="section-title">采集中心</h2>
+          <span className="muted">Git 提交与 AI 会话的审核入库</span>
         </div>
         <div className="row gap-sm wrap">
           <div className="seg">
@@ -268,6 +316,8 @@ export function GitPage() {
           </div>
         </div>
       </div>
+
+      {collectHead}
 
       <div className="row gap-sm wrap" style={{ marginBottom: 12 }}>
         <Button size="sm" style={{ minWidth: 80 }} variant={period === 'today' ? 'primary' : 'default'} onClick={() => setPeriod('today')}>今天</Button>

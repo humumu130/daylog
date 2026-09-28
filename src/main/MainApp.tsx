@@ -6,8 +6,9 @@ import { NAV } from './nav';
 import { Sidebar } from './Sidebar';
 import { WindowControls } from './components/WindowControls';
 import { TodayPage } from './pages/TodayPage';
-import { CalendarPage } from './pages/CalendarPage';
-import { GitPage } from './pages/GitPage';
+import { HistoryPage } from './pages/HistoryPage';
+import { ReportsPage } from './pages/ReportsPage';
+import { CollectPage } from './pages/CollectPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -149,9 +150,13 @@ export function MainApp() {
             <Routes>
               <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/today" element={<TodayPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/git" element={<GitPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/collect" element={<CollectPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              {/* 旧深链兼容：P4 路由重排前入口 */}
+              <Route path="/calendar" element={<Navigate to="/history" replace />} />
+              <Route path="/git" element={<Navigate to="/collect" replace />} />
             </Routes>
           ) : (
             <div className="loading">
