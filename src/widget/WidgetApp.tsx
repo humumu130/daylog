@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, ListTodo, Pin, Trash2, X } from 'lucide-react';
+import { Plus, ListTodo, Pin, Trash2, X, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { Button, Checkbox, Input } from '../ui';
 import { applyTheme } from '../styles/applyTheme';
@@ -8,7 +8,7 @@ import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
 import { useRecordsStore } from '../stores/useRecordsStore';
 import { createRecord, listRecordsByRange } from '../services/db';
-import { notifyChanged, onTheme } from '../services/events';
+import { notifyChanged, onChanged, onTheme } from '../services/events';
 import { hideWidget } from '../services/window';
 import { autoDuration, commitAutoDuration } from '../services/duration';
 import { splitHoursBackward } from '../services/allocate';
@@ -48,6 +48,7 @@ export function WidgetApp() {
   const [flash, setFlash] = useState('');
   const [pinned, setPinned] = useState(true); // 置顶（始终在最前）
   const [hoursById, setHoursById] = useState<Record<string, string>>({}); // 每条待办的工时输入
+  const [aiFoldOpen, setAiFoldOpen] = useState(false); // AI 采集分组折叠态（默认折叠，计数常显）
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,13 +61,22 @@ export function WidgetApp() {
       if (f) inputRef.current?.focus();
     });
     const ut = onTheme((t) => applyTheme(t));
+    // 采集引擎产出（AI 待办摄入/自动条目）广播 → 浮窗实时刷新
+    const uc = onChanged(() => {
+      void fetchTasks();
+      void setRange(todayYMD(), todayYMD());
+    });
     return () => {
       void p.then((fn) => fn());
       void ut.then((fn) => fn());
+      void uc.then((fn) => fn());
     };
   }, [loadSettings, fetchTasks, fetchProjects, setRange]);
 
   const active = useMemo(() => tasks.filter((t) => t.status === 'active'), [tasks]);
+  // AI 采集待办单独分组（todoIngest 摄入，去重由 external_key 保证；完成同手动勾选记账）
+  const manualActive = active.filter((t) => t.source !== 'ai');
+  const aiActive = active.filter((t) => t.source === 'ai');
 
   // NL 解析输入（#项目 / 耗时），用于回显芯片 + 创建时带上
   const parsed = useMemo(
@@ -157,6 +167,62 @@ export function WidgetApp() {
     return id ? projects.find((p) => p.id === id) : undefined;
   }
 
+  /** 待办行（手动/AI 共用；AI 行 meta 里加来源徽标） */
+  function renderTodo(t: (typeof tasks)[number]) {
+    const proj = projOf(t.projectId);
+    const dur = readDuration(t.note);
+    return (
+      <div key={t.id} className={`widget-item${busy === t.id ? ' busy' : ''}`}>
+        <Checkbox
+          checked={false}
+          disabled={busy === t.id}
+          ariaLabel={`完成 ${t.title}`}
+          onChange={() => void complete(t, null)}
+        />
+        <div className="widget-item-body">
+          <span className="widget-item-title">{t.title}</span>
+          <div className="widget-item-meta">
+            {t.source === 'ai' && <span className="widget-item-ai">AI 采集</span>}
+            {proj && (
+              <span className="widget-item-proj">
+                <i className="wdot" style={{ background: proj.color }} /> {proj.name}
+              </span>
+            )}
+            {dur != null && <span className="widget-item-dur">{formatHM(dur)}</span>}
+          </div>
+        </div>
+        <input
+          className="sel widget-hours-input"
+          type="number"
+          step={0.5}
+          min={0}
+          placeholder="工时"
+          value={hoursById[t.id] ?? ''}
+          onChange={(e) => setHoursById((m) => ({ ...m, [t.id]: e.target.value }))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const hv = parseFloat(hoursById[t.id] ?? '');
+              void complete(t, isNaN(hv) ? null : hv);
+            }
+          }}
+          disabled={busy === t.id}
+          title="工时（小时），回车完成；不填自动分配；超单日上限自动拆到前几天"
+        />
+        <button
+          className="widget-del"
+          title="删除"
+          aria-label={`删除 ${t.title}`}
+          tabIndex={-1}
+          disabled={busy === t.id}
+          onClick={() => void removeTask(t.id)}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell widget-root">
       <div className="widget-header" data-tauri-drag-region>
@@ -201,59 +267,24 @@ export function WidgetApp() {
 
       <div className="widget-list">
         {active.length === 0 && <div className="empty widget-empty">没有待办，加一个吧 ✍️</div>}
-        {active.map((t) => {
-          const proj = projOf(t.projectId);
-          const dur = readDuration(t.note);
-          return (
-            <div key={t.id} className={`widget-item${busy === t.id ? ' busy' : ''}`}>
-              <Checkbox
-                checked={false}
-                disabled={busy === t.id}
-                ariaLabel={`完成 ${t.title}`}
-                onChange={() => void complete(t, null)}
-              />
-              <div className="widget-item-body">
-                <span className="widget-item-title">{t.title}</span>
-                <div className="widget-item-meta">
-                  {proj && (
-                    <span className="widget-item-proj">
-                      <i className="wdot" style={{ background: proj.color }} /> {proj.name}
-                    </span>
-                  )}
-                  {dur != null && <span className="widget-item-dur">{formatHM(dur)}</span>}
-                </div>
-              </div>
-              <input
-                className="sel widget-hours-input"
-                type="number"
-                step={0.5}
-                min={0}
-                placeholder="工时"
-                value={hoursById[t.id] ?? ''}
-                onChange={(e) => setHoursById((m) => ({ ...m, [t.id]: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const hv = parseFloat(hoursById[t.id] ?? '');
-                    void complete(t, isNaN(hv) ? null : hv);
-                  }
-                }}
-                disabled={busy === t.id}
-                title="工时（小时），回车完成；不填自动分配；超单日上限自动拆到前几天"
-              />
-              <button
-                className="widget-del"
-                title="删除"
-                aria-label={`删除 ${t.title}`}
-                tabIndex={-1}
-                disabled={busy === t.id}
-                onClick={() => void removeTask(t.id)}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          );
-        })}
+        {manualActive.map(renderTodo)}
+        {aiActive.length > 0 && (
+          <div className="widget-ai-group">
+            <button
+              type="button"
+              className="widget-ai-fold"
+              aria-expanded={aiFoldOpen}
+              title="从 AI 会话采集的待办（自动去重，会话完成自动划掉）"
+              onClick={() => setAiFoldOpen((v) => !v)}
+            >
+              {aiFoldOpen ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+              <Sparkles size={13} className="widget-ai-icon" aria-hidden="true" />
+              <span>AI 采集</span>
+              <span className="widget-ai-count">{aiActive.length}</span>
+            </button>
+            {aiFoldOpen && aiActive.map(renderTodo)}
+          </div>
+        )}
       </div>
 
       <div className="widget-foot">

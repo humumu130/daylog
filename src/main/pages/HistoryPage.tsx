@@ -38,6 +38,7 @@ export function HistoryPage() {
   const remove = useRecordsStore((s) => s.remove);
   const projects = useProjectsStore((s) => s.projects);
   const tasks = useTasksStore((s) => s.tasks);
+  const createTask = useTasksStore((s) => s.create);
   const dailyCapHours = useSettingsStore((s) => s.settings.dailyCapHours);
 
   useEffect(() => {
@@ -86,6 +87,18 @@ export function HistoryPage() {
         onAction: () => void create(recordToInput(r)),
       });
     });
+  }
+  /** 转为待办：条目内容生成 active 待办进待办浮窗（todo⇄record 双向之一） */
+  async function onToTodo(r: WorkRecord) {
+    await createTask({
+      title: truncateEntry(r.content, 60),
+      projectId: r.projectId,
+      status: 'active',
+      startDate: r.day,
+      endDate: null,
+      note: '',
+    });
+    toast(`已转为待办「${truncateEntry(r.content, 18)}」`);
   }
   /** 年历 12 宫格点击 → 跳该月月历 */
   function gotoMonth(m: string) {
@@ -140,7 +153,8 @@ export function HistoryPage() {
                   <TimelineEntry key={r.id} record={r} projects={projects}
                     onUpdate={onEntryUpdate}
                     onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })}
-                    onDelete={onEntryDelete} />
+                    onDelete={onEntryDelete}
+                    onToTodo={onToTodo} />
                 ))}
               </div>
             )}

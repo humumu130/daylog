@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { Input } from '../ui';
+import { CaptureInput } from '../main/components/CaptureInput';
 import { applyTheme } from '../styles/applyTheme';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -89,15 +89,6 @@ export function QuickCaptureApp() {
     void hideQuickCapture();
   }
 
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void save();
-    } else if (e.key === 'Escape') {
-      void hideQuickCapture();
-    }
-  }
-
   const projName = (id: string | null) => (id ? projects.find((p) => p.id === id)?.name : undefined);
 
   return (
@@ -109,13 +100,15 @@ export function QuickCaptureApp() {
         </button>
       </div>
       <div className="capture-body">
-        <Input
-          ref={inputRef}
+        <CaptureInput
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKeyDown}
+          onChange={setText}
+          onSubmit={() => void save()}
+          onEsc={() => void hideQuickCapture()}
           placeholder="处理 xxbug 8h  （; 多条）"
-          className="capture-input"
+          icon={<Pencil size={16} />}
+          inputRef={inputRef}
+          wrapClassName="capture-input"
         />
         <div className="capture-chips">
           {first?.durationMin != null && <span className="chip">{formatHours(first.durationMin)}</span>}

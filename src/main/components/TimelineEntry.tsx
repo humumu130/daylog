@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { ListTodo, Pencil, Trash2 } from 'lucide-react';
 import { Badge, SourceBadge } from '../../ui';
 import type { Project, RecordSource, WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
@@ -38,6 +38,8 @@ interface Props {
   /** 全字段编辑（RecordEditor 兜底）：行内 E 键 / 编辑按钮 */
   onEdit: (r: WorkRecord) => void;
   onDelete: (r: WorkRecord) => void;
+  /** 转为待办（todo⇄record 双向的 record→todo 侧）；不传则不显示该按钮 */
+  onToTodo?: (r: WorkRecord) => void;
 }
 
 const EXTRA_SRC_LABEL: Partial<Record<RecordSource, string>> = {
@@ -55,7 +57,7 @@ function sourceBadge(source: RecordSource) {
  * 时间轴条目 v2：行内编辑（双击内容 / stepper 改时长 / chip 换项目）+ 键盘（E 编辑 · Del 删除 · ↑↓ 行导航）。
  * RecordEditor 退居全字段兜底。
  */
-export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete }: Props) {
+export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete, onToTodo }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(record.content);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -146,6 +148,15 @@ export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete }: 
         />
         {sourceBadge(record.source)}
         <span className="tl-actions">
+          {onToTodo && (
+            <button
+              className="icon-btn"
+              title="转为待办（进待办浮窗）"
+              onClick={() => onToTodo(record)}
+            >
+              <ListTodo size={16} />
+            </button>
+          )}
           <button
             className="icon-btn"
             title="编辑（全字段）"

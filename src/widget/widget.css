@@ -138,3 +138,47 @@
   color: var(--colorBrandForeground1);
   font-weight: 600;
 }
+
+/* AI 采集待办分组（P7）：默认折叠，计数常显 */
+.widget-ai-group {
+  margin-top: 6px;
+}
+.widget-ai-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--dl-radius-sm);
+  background: transparent;
+  color: var(--dl-fg-3);
+  font-size: var(--dl-text-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--dl-motion-fast) var(--dl-ease), background var(--dl-motion-fast) var(--dl-ease);
+}
+.widget-ai-fold:hover {
+  color: var(--dl-fg-1);
+  background: var(--dl-bg-hover);
+}
+.widget-ai-icon {
+  color: var(--dl-src-ai);
+}
+.widget-ai-count {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--dl-radius-full);
+  background: var(--dl-bg-3);
+  color: var(--dl-fg-3);
+  font-size: var(--dl-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.widget-item-ai {
+  padding: 1px 6px;
+  border-radius: var(--dl-radius-full);
+  background: color-mix(in srgb, var(--dl-src-ai) 12%, transparent);
+  color: var(--dl-src-ai);
+  font-size: var(--dl-text-xs);
+  white-space: nowrap;
+}

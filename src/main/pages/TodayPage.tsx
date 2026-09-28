@@ -41,6 +41,7 @@ export function TodayPage() {
   const remove = useRecordsStore((s) => s.remove);
   const projects = useProjectsStore((s) => s.projects);
   const tasks = useTasksStore((s) => s.tasks);
+  const createTask = useTasksStore((s) => s.create);
   const gotoDay = useUiStore((s) => s.gotoDay);
   const consumeGotoDay = useUiStore((s) => s.consumeGotoDay);
 
@@ -107,6 +108,19 @@ export function TodayPage() {
         onAction: () => void create(recordToInput(r)),
       });
     });
+  }
+
+  /** 转为待办：条目内容生成 active 待办进待办浮窗（todo⇄record 双向之一） */
+  async function onToTodo(r: WorkRecord) {
+    await createTask({
+      title: truncateEntry(r.content, 60),
+      projectId: r.projectId,
+      status: 'active',
+      startDate: r.day,
+      endDate: null,
+      note: '',
+    });
+    toast(`已转为待办「${truncateEntry(r.content, 18)}」`);
   }
 
   /** 日菜单：重整合当前查看日（已摄入事件重建；运行中禁用防双击） */
@@ -231,6 +245,7 @@ export function TodayPage() {
                     onUpdate={onEntryUpdate}
                     onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })}
                     onDelete={onEntryDelete}
+                    onToTodo={onToTodo}
                   />
                 ))}
               </section>
