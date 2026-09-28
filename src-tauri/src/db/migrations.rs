@@ -232,5 +232,17 @@ pub fn migrations() -> Vec<Migration> {
             sql: "ALTER TABLE noise_reviews ADD COLUMN day TEXT",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 39,
+            description: "create_workspaces",
+            sql: "CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL CHECK(type IN ('work','personal')), is_default INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 40,
+            description: "seed_default_workspace",
+            sql: "INSERT OR IGNORE INTO workspaces (id, name, type, is_default, archived, created_at) VALUES ('work', '工作', 'work', 1, 0, 0)",
+            kind: MigrationKind::Up,
+        },
     ]
 }

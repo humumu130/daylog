@@ -6,6 +6,31 @@ export type RecordSource = 'manual' | 'git' | 'timer' | 'import' | 'ai' | 'mixed
 export type LlmProviderKind = 'openai-compat' | 'anthropic' | 'claude-code';
 export type Theme = 'light' | 'dark';
 
+/** 空间类型（枚举锁死两值：模块矩阵依赖类型语义，自定义类型会打穿显隐/守卫体系） */
+export type WorkspaceKind = 'work' | 'personal';
+
+/** 空间（P8b）：工作空间（工时/上报/额度）与个人空间（成长记录/复盘/无上报）数据隔离，采集引擎共享 */
+export interface Workspace {
+  id: string;
+  name: string;
+  type: WorkspaceKind;
+  isDefault: boolean;
+  archived: boolean;
+  createdAt: number;
+}
+
+/** 记录类型（个人空间主用；work 空间恒 'work'） */
+export type RecordType = 'work' | 'learning' | 'practice' | 'milestone' | 'thought' | 'retro';
+
+export const RECORD_TYPE_LABELS: Record<RecordType, string> = {
+  work: '工作',
+  learning: '学到什么',
+  practice: '练习实践',
+  milestone: '里程碑',
+  thought: '想法',
+  retro: '复盘',
+};
+
 export interface Project {
   id: string;
   name: string;
@@ -14,6 +39,8 @@ export interface Project {
   isActive: boolean;
   sortOrder: number;
   createdAt: number;
+  /** 所属空间（P8b；存量= 'work'） */
+  workspaceId: string;
 }
 
 /** 工作事项：可跨多天；多条同时 active 即并行 */
@@ -31,6 +58,8 @@ export interface Task {
   source: 'manual' | 'ai';
   /** 外部幂等键 sha1(provider+normalize(subject)+projectId)，AI 摄入防重 */
   externalKey: string | null;
+  /** 所属空间（P8b；存量= 'work'） */
+  workspaceId: string;
 }
 
 /** 原子日志条目：绑定具体某天的某个半天，可选关联 Task */
@@ -48,6 +77,14 @@ export interface WorkRecord {
   meta: Record<string, unknown>;
   /** 产生本条的整合运行 id（自动条目溯源/按 run 撤销）；手动条目无 */
   runId?: string;
+  /** 所属空间（P8b；存量= 'work'） */
+  workspaceId: string;
+  /** 记录类型（个人空间主用；work 空间恒 'work'） */
+  recordType: RecordType;
+  /** 学到什么（个人空间 learnings 全链路；work 空间为空数组） */
+  learnings: string[];
+  /** 标签 */
+  tags: string[];
 }
 
 export interface ReportTemplate {
@@ -153,6 +190,10 @@ export interface AppSettings {
   choerodon: ChoerodonSettings | null;
   /** 填报策略（P8）：上报向导与导出的时长口径；本地日志永远如实 */
   reportPolicy: ReportPolicy;
+  /** 首启向导已完成（P8b：三选一只弹一次） */
+  onboardDone: boolean;
+  /** Obsidian 库路径（个人空间每日导出；空=未配置） */
+  obsidianDir: string;
 }
 
 export interface ChoerodonSettings {
