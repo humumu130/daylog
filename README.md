@@ -1,28 +1,43 @@
 # 日迹 Daylog
 
-> Windows / macOS 桌面工作日志插件 —— 随手记 → 一键导出日报，AI 自动生成月报 / 季报 / 年报。
+> 桌面工作日志应用 —— 自动采集 AI 会话与 Git 提交，LLM 整合入库，按策略上报项目管理系统；个人空间记录成长与复盘。
 
-Tauri 2 (Rust) + React 19 + TypeScript + Fluent UI v9 + SQLite + Zustand。
+Tauri 2 (Rust) + React 19 + TypeScript + SQLite（tauri-plugin-sql）+ Zustand。三窗口：主窗、快速记录浮窗、待办浮窗。UI 为自建设计系统（`--dl-*` token，Linear/Raycast 质现代工具风，明暗双主题）。
 
 应用标识 `com.worklog.app`（决定本地数据目录，请勿更改）。
 
+## 工作流：尽量无感
+
+北极星是**把日志填报的人工工作量压到趋近于零**：
+
+1. **自动采集**（后台，启动补扫 + 30 分钟轮询）：读取本地 AI 会话存储（Claude Code，可扩展 Codex 等）与 Git 提交，水位线增量、事件指纹幂等——恰好一次语义，不重不漏。
+2. **LLM 整合**：按「日 × 项目」把 AI 会话与 Git 提交交叉合并成成果式条目（同日同项目必进同一次调用）；活跃区间模型估时（消息/提交时间戳切区间，Σ ≤ 当日活跃总时长）；噪音三通道（高置信自动排除留痕可恢复 / 中置信待确认 / 用户判定沉淀规则）。
+3. **自动入库**：高置信直接写（带来源徽标），按日撤销 / 单条移除并忽略同类 / 重整合幂等；用户编辑过的条目收养保护。
+4. **智能上报**：猪齿鱼 PAT 批量上报三步向导——工时日历对账三分桶（已报勿动 / 已同步 / 待补报）、两档填报策略（如实 / 按目标补齐）、加班按工时边界证据测量（额度只提醒不硬塞）、sync_log 幂等防重、部分失败重跑只补缺口。
+
+出网内容统一经本地脱敏总线（密钥/连接串/内网地址 → 占位符，保语义不保值，可视可审计）；PAT 与 LLM API Key 只存 OS 钥匙串，配置文件零明文。
+
+## 双场景空间
+
+- **工作空间**：工时 / 额度 / 上报 / 报告。
+- **个人空间**：成长记录（学到什么 / 练习 / 里程碑 / 想法 / 复盘）、周月复盘卡（实时聚合 + AI 复盘 + 快照）、Obsidian 每日导出（兼容旧 hook 标记区协议，`record/YYYY-MM-DD.md` 续写）。
+- 数据与模块按空间隔离（显隐 + 行为守卫双实施），采集引擎共享；首启三选一（只记工作 / 只记个人 / 两者），单空间 = 专用软件体验。
+
 ## 主要功能
 
-- **NL 自然语言捕获**：`#项目` / `@任务` / 耗时（`2h`、`30m`） / 日期关键词（`昨天`、`5号`、`X月X日`） / `;` 多条
-- **智能工时**：不填时长按 8h/天均分；满 8h 加班默认 +2h
-- **今日页**：时间轴 + 日期导航（← →）+ 进度环统计
-- **月历 / 年历视图**：按天总工时 + 项目色点
-- **Git 扫描导入**：配置多仓库自动扫描，「原始提交 / 智能整合」（LLM 合并相关提交 + 估耗时 + 去重）双模式，过滤 merge 提交
-- **LLM 月报 / 季报 / 年报**：OpenAI 兼容（默认智谱 GLM）；或本地 claude CLI
-- **全局搜索**（Ctrl/Cmd + K）、下班提醒、数据备份（导出 / 导入 / 自动备份）、删除确认、错误边界
-- 双全局热键、待办桌面浮窗、系统托盘、明暗主题
+- **今日页**：时间轴（上午/下午/晚间分组）、行内编辑（时长 ±30m / 项目 / 双击内容）、进度环、日菜单（重整合 / 撤销自动 / 批量上报 / 复制日报）、条目转待办
+- **月历**：工时热度底色 + 周合计 + 已上报/手报角标 + 日详情抽屉；年历 12 宫格导航
+- **报告**：月 / 季 / 半年 / 年 / 自定义期，AI 按模板生成，Markdown 预览 / 编辑 / 导出
+- **采集中心**：源健康度（按 provider）、自动条目、噪音待确认与留痕恢复、未映射 cwd AI 建议认领、Git 手动导入（回溯工具）、聊天记录粘贴解析入库
+- **命令面板** ⌘K：动作 / 跳日期 / 记录 / 项目任务全键盘
+- 快速记录与待办浮窗（AI 采集待办自动分组，会话完成自动划掉）、全局热键、系统托盘、下班提醒与空白天哨兵、自动备份
 
 ## 安装与运行
 
 ### 前置依赖
 
 - [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/)（推荐）或 npm
+- [pnpm](https://pnpm.io/)
 - [Rust](https://www.rust-lang.org/tools/install) 工具链（`cargo`）
 
 ### 本地开发
@@ -35,32 +50,29 @@ pnpm tauri dev
 ### 打包
 
 ```bash
+# macOS
+pnpm tauri build
+
 # Windows：出 .exe 安装包（NSIS）
 pnpm tauri build --bundles nsis
-
-# macOS：universal 包（同时支持 Apple Silicon 和 Intel）
-pnpm tauri build --target universal-apple-darwin
 ```
 
-> Windows 不要用默认的 MSI：中文产品名「日迹」会让 WiX 的 `light.exe` 失败，统一用 NSIS。
-
-## 数据目录
-
-- 数据库：`%AppData%\com.worklog.app\worklog.db`（macOS：`~/Library/Application Support/com.worklog.app/`）
-- 自动备份：同目录 `backups/` 下
-
-## 发布流程
-
-打 tag（如 `v1.0.0`）或在 GitHub Actions 页手动触发 `release` workflow，会自动在 macOS + Windows 上构建，产物挂到 Release：
+### 质量门禁
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+pnpm build   # tsc --noEmit + vite build
+pnpm test    # vitest 单测
+cd src-tauri && cargo check && cargo test
 ```
 
-- Windows：`日迹_x.x.x_x64-setup.exe`
-- macOS：`日迹_x.x.x_universal.dmg`（首次打开若提示「未识别开发者」，右键 → 打开）
+## 配置
 
-## License
+- **LLM**：OpenAI 兼容云端 API（默认智谱 GLM）或本地 claude CLI（不出网）；API Key 存 OS 钥匙串
+- **采集**：扫描根 / 回看天数 / 噪音严格度 / 脱敏开关 / 工时边界（上/下班时间、周末与早到计入加班）
+- **上报**：猪齿鱼 API 地址 + PAT（钥匙串）+ 项目映射（规则初筛 + AI 精配，宁空勿错）+ 映射健康检查
 
-MIT
+扩展开发（新 AI 工具数据源 / 新上报平台）见 [CONTRIBUTING.md](./CONTRIBUTING.md)——双适配器架构，各是一个适配器的工作量。
+
+## 数据
+
+SQLite 单源（`worklog.db`）：records / projects / tasks / workspaces / collector_state（水位线）/ ingested_events（指纹）/ noise_reviews / consolidate_runs / choerodon_sync_log（上报幂等）/ retrospectives。迁移版本化（migrations.rs），迁移前自动备份。

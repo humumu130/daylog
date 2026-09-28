@@ -103,6 +103,8 @@
   --dl-accent: #818cf8;
   --dl-accent-hover: #93a0fa;
   --dl-accent-subtle: rgba(129, 140, 248, 0.16);
+  /* 浅靛蓝底配深靛蓝字（白字对比仅 2.98，改深字 5.36 达标） */
+  --dl-fg-on-accent: #1e1b4b;
 
   --dl-danger: #f87171;
   --dl-danger-subtle: rgba(248, 113, 113, 0.12);
