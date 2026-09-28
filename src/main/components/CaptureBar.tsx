@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Check, Pencil } from 'lucide-react';
-import { Button, Input } from '../../ui';
+import { Button } from '../../ui';
+import { CaptureInput } from './CaptureInput';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -22,6 +23,7 @@ export function CaptureBar({ day, onDayChange }: Props) {
   const tasks = useTasksStore((s) => s.tasks);
   const create = useRecordsStore((s) => s.create);
   const boundaries = useSettingsStore((s) => s.settings.boundaries);
+  const dailyCapHours = useSettingsStore((s) => s.settings.dailyCapHours);
 
   const [text, setText] = useState('');
   const [flashed, setFlashed] = useState(false);
@@ -55,7 +57,7 @@ export function CaptureBar({ day, onDayChange }: Props) {
         });
       } else {
         // 先规划 → 先建新记录 → 建成功后再压缩已有（保证原子性）
-        const plan = await autoDuration(recordDay);
+        const plan = await autoDuration(recordDay, dailyCapHours);
         await create({
           content: e.content,
           durationMin: plan.share,
@@ -78,21 +80,14 @@ export function CaptureBar({ day, onDayChange }: Props) {
   return (
     <div className={`capture-bar${flashed ? ' flashed' : ''}`}>
       <div className="capture-row">
-        {/* capture-input 类移到包裹 span：ui Input 前缀模式根节点不吃 className，flex:1 与字号规则仍由原 CSS 接管 */}
-        <span className="capture-input" style={{ display: 'grid' }}>
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void save();
-              }
-            }}
-            placeholder="修复登录页 2h #用户中心   （支持：昨天 / 5号 / X月X日）"
-            prefix={<span className="capture-icon">{flashed ? <Check size={18} /> : <Pencil size={18} />}</span>}
-          />
-        </span>
+        <CaptureInput
+          value={text}
+          onChange={setText}
+          onSubmit={() => void save()}
+          placeholder="修复登录页 2h #用户中心   （支持：昨天 / 5号 / X月X日 / ; 多条）"
+          icon={<span className="capture-icon">{flashed ? <Check size={18} /> : <Pencil size={18} />}</span>}
+          wrapClassName="capture-input"
+        />
         <Button variant="primary" className="capture-btn" onClick={() => void save()}>
           记录
         </Button>

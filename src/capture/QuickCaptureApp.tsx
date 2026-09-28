@@ -70,7 +70,7 @@ export function QuickCaptureApp() {
           source: 'manual',
         });
       } else {
-        const plan = await autoDuration(recordDay);
+        const plan = await autoDuration(recordDay, settings.dailyCapHours);
         await createRecord({
           content: e.content,
           durationMin: plan.share,

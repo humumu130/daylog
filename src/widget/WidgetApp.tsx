@@ -139,7 +139,7 @@ export function WidgetApp() {
         }
       } else {
         // 无显式工时：autoDuration 智能分配
-        const plan = await autoDuration(todayYMD());
+        const plan = await autoDuration(todayYMD(), settings.dailyCapHours);
         await createRecord({ content: task.title, durationMin: plan.share, day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual', meta: { autoDuration: true } });
         await commitAutoDuration(plan);
         await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());

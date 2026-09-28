@@ -6,7 +6,8 @@ import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useTasksStore } from '../../stores/useTasksStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { MonthCalendar } from '../components/MonthCalendar';
-import { TimelineEntry } from '../components/TimelineEntry';
+import { TimelineEntry, recordToInput, truncateEntry, type EntryPatch } from '../components/TimelineEntry';
+import { toast } from '../components/UndoToast';
 import { RecordEditor } from '../components/RecordEditor';
 import { ReportSection } from '../components/ReportSection';
 import type { Half, ReportTemplate, WorkRecord } from '../../types/models';
@@ -74,6 +75,21 @@ export function CalendarPage() {
     if (existing) await update(existing.id, input); else await create(input);
   }
 
+  /** 日详情行内更新 / 删除（与今日页同款：patch 合并 + 立即删撤销 toast） */
+  function onEntryUpdate(id: string, patch: EntryPatch) {
+    const rec = records.find((r) => r.id === id);
+    if (!rec) return;
+    void update(id, { ...recordToInput(rec), ...patch });
+  }
+  function onEntryDelete(r: WorkRecord) {
+    void remove(r.id).then(() => {
+      toast(`已删除「${truncateEntry(r.content, 18)}」`, {
+        actionLabel: '撤销',
+        onAction: () => void create(recordToInput(r)),
+      });
+    });
+  }
+
   const selectedQuarter = selectedMonth ? Math.ceil(Number(selectedMonth.slice(5, 7)) / 3) : Math.ceil(Number(ym.slice(5, 7)) / 3);
 
   return (
@@ -119,8 +135,10 @@ export function CalendarPage() {
               ) : (
                 <div className="tl" style={{ maxHeight: 300, overflow: 'auto' }}>
                   {[...dayRecords].sort((a, b) => b.createdAt - a.createdAt).map((r) => (
-                    <TimelineEntry key={r.id} record={r} project={r.projectId ? projects.find((p) => p.id === r.projectId) : undefined}
-                      onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })} onDelete={(id) => void remove(id)} />
+                    <TimelineEntry key={r.id} record={r} projects={projects}
+                      onUpdate={onEntryUpdate}
+                      onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })}
+                      onDelete={onEntryDelete} />
                   ))}
                 </div>
               )}

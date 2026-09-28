@@ -250,3 +250,235 @@
   font-size: 11px; padding: 1px 8px; border-radius: 999px; flex: none; font-weight: 500;
 }
 
+
+/* ============ P3 时间轴 v2：分组 / 行内编辑 / 时长步进器 / 项目 chip（--dl- token） ============ */
+.tl-group {
+  margin-bottom: 6px;
+}
+.tl-group-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0 4px 46px;
+}
+.tl-group-name {
+  font-size: var(--dl-text-sm);
+  font-weight: 600;
+  color: var(--dl-fg-2);
+  letter-spacing: 0.4px;
+}
+.tl-group-meta {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.tl-row {
+  border-radius: var(--dl-radius-md);
+  padding: 3px 6px 3px 0;
+}
+.tl-row:hover {
+  background: var(--dl-bg-hover);
+}
+.tl-row:focus-visible {
+  outline: none;
+  background: var(--dl-bg-hover);
+  box-shadow: var(--dl-focus-ring);
+}
+.tl-content-edit {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--dl-text-md);
+  color: var(--dl-fg-1);
+  background: var(--dl-bg-surface);
+  border: 1px solid var(--dl-border-focus);
+  border-radius: var(--dl-radius-sm);
+  padding: 3px 8px;
+  resize: vertical;
+}
+.tl-content-edit:focus {
+  outline: none;
+}
+
+/* ---- DurationStepper：− 值 ＋ / 弹层快捷档 ---- */
+.dur-step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: var(--dl-radius-full);
+  background: var(--dl-bg-muted);
+}
+.dur-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--dl-fg-2);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--dl-radius-full);
+}
+.dur-btn:hover {
+  color: var(--dl-fg-1);
+  background: var(--dl-bg-active);
+}
+.dur-val {
+  min-width: 44px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--dl-fg-1);
+  font-size: var(--dl-text-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border-radius: var(--dl-radius-full);
+}
+.dur-val:hover {
+  background: var(--dl-bg-active);
+}
+.dur-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 208px;
+  padding: 10px;
+  background: var(--dl-bg-raised);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  box-shadow: var(--dl-shadow-md);
+}
+.dur-type {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-1);
+  background: var(--dl-bg-surface);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-sm);
+}
+.dur-type:focus {
+  outline: none;
+  border-color: var(--dl-border-focus);
+}
+.dur-quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.dur-q {
+  height: 24px;
+  border: none;
+  background: var(--dl-bg-muted);
+  color: var(--dl-fg-2);
+  font-size: var(--dl-text-xs);
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--dl-radius-sm);
+  cursor: pointer;
+}
+.dur-q:hover {
+  background: var(--dl-bg-active);
+  color: var(--dl-fg-1);
+}
+.dur-q.on {
+  background: var(--dl-accent);
+  color: var(--dl-fg-on-accent);
+  font-weight: 600;
+}
+.dur-hint {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+}
+
+/* ---- ProjectChipSelect：行内项目 chip + 下拉 ---- */
+.pcs {
+  position: relative;
+  flex-shrink: 0;
+}
+.pcs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: var(--dl-radius-full);
+  font-size: var(--dl-text-xs);
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pcs-none {
+  border-color: var(--dl-border-1);
+  border-style: dashed;
+  background: transparent;
+  color: var(--dl-fg-3);
+}
+.pcs-none:hover {
+  color: var(--dl-fg-2);
+  border-color: var(--dl-fg-3);
+}
+.pcs-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--dl-radius-full);
+  display: inline-block;
+}
+.pcs-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 172px;
+  max-height: 244px;
+  overflow: auto;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dl-bg-raised);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  box-shadow: var(--dl-shadow-md);
+}
+.pcs-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: none;
+  background: transparent;
+  border-radius: var(--dl-radius-sm);
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-1);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.pcs-item:hover {
+  background: var(--dl-bg-hover);
+}
+.pcs-item.on {
+  background: var(--dl-accent-subtle);
+  color: var(--dl-accent);
+  font-weight: 600;
+}
+.pcs-off {
+  margin-left: auto;
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+}
+.pcs-empty {
+  padding: 8px;
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+}
+
+/* ---- CaptureInput 包裹层（ui Input 前缀模式根节点不吃 className） ---- */
+.ci-wrap {
+  display: grid;
+}

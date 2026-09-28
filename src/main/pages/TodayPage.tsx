@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CloudUpload } from 'lucide-react';
 import { CaptureBar } from '../components/CaptureBar';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { TimelineEntry } from '../components/TimelineEntry';
+import { TimelineEntry, recordToInput, truncateEntry, type EntryPatch } from '../components/TimelineEntry';
 import { ProgressRing } from '../components/ProgressRing';
 import { RecordEditor } from '../components/RecordEditor';
 import { ChoerodonSyncModal } from '../components/ChoerodonSyncModal';
+import { toast } from '../components/UndoToast';
 import type { Half, WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
 import { useProjectsStore } from '../../stores/useProjectsStore';
@@ -15,19 +15,19 @@ import { useTasksStore } from '../../stores/useTasksStore';
 import { useUiStore } from '../../stores/useUiStore';
 import { addDays, formatYMDChinese, parseYMD, todayYMD, weekdayCN } from '../../utils/date';
 import { formatHM } from '../../utils/halfDay';
+import { HALF_LABEL_CN, HALF_ORDER } from '../../utils/halfDay';
 
-const GOAL_MIN = 8 * 60;
-
+/** 今日页：捕获 + 分组时间轴（行内编辑）+ 进度环（目标=dailyCapHours，随设置联动） */
 export function TodayPage() {
   const [day, setDay] = useState(todayYMD());
   const [editor, setEditor] = useState<{ open: boolean; half: Half; record?: WorkRecord | null }>({
     open: false,
     half: 'morning',
   });
-  const [delId, setDelId] = useState<string | null>(null);
   const [choerodonOpen, setChoerodonOpen] = useState(false);
 
   const records = useRecordsStore((s) => s.records);
+  const dailyCapHours = useSettingsStore((s) => s.settings.dailyCapHours);
   const choerodonCfg = useSettingsStore((s) => s.settings.choerodon);
   const setRange = useRecordsStore((s) => s.setRange);
   const create = useRecordsStore((s) => s.create);
@@ -45,7 +45,7 @@ export function TodayPage() {
     void setRange(addDays(today, -6), today);
   }, [setRange, today]);
 
-  // 来自全局搜索的跳转请求：确保目标日期落在已加载区间内
+  // 来自命令面板的跳转请求：确保目标日期落在已加载区间内
   useEffect(() => {
     if (gotoDay) {
       setDay(gotoDay);
@@ -57,9 +57,40 @@ export function TodayPage() {
   const dayRecords = useMemo(() => records.filter((r) => r.day === day), [records, day]);
   const totalMin = dayRecords.reduce((s, r) => s + (r.durationMin ?? 0), 0);
 
+  // 分组：全天/上午/下午/晚间（按 HALF_ORDER），组内新→旧
+  const groups = useMemo(() => {
+    return (Object.keys(HALF_ORDER) as Half[])
+      .sort((a, b) => HALF_ORDER[a] - HALF_ORDER[b])
+      .map((half) => ({
+        half,
+        label: HALF_LABEL_CN[half],
+        items: dayRecords
+          .filter((r) => r.half === half)
+          .sort((a, b) => b.createdAt - a.createdAt),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [dayRecords]);
+
   async function onSubmit(input: RecordInput, existing?: WorkRecord) {
     if (existing) await update(existing.id, input);
     else await create(input);
+  }
+
+  /** 行内更新：字段 patch 合并到全量载荷落库 */
+  function onEntryUpdate(id: string, patch: EntryPatch) {
+    const rec = records.find((r) => r.id === id);
+    if (!rec) return;
+    void update(id, { ...recordToInput(rec), ...patch });
+  }
+
+  /** 立即删除 + 5 秒撤销（单条删除不再弹确认框；批量操作才走 ConfirmDialog） */
+  function onEntryDelete(r: WorkRecord) {
+    void remove(r.id).then(() => {
+      toast(`已删除「${truncateEntry(r.content, 18)}」`, {
+        actionLabel: '撤销',
+        onAction: () => void create(recordToInput(r)),
+      });
+    });
   }
 
   return (
@@ -86,11 +117,11 @@ export function TodayPage() {
             </button>
           )}
           <div className="today-stat-card">
-            <ProgressRing progress={totalMin / GOAL_MIN} />
+            <ProgressRing progress={totalMin / (Math.max(1, dailyCapHours) * 60)} />
             <div className="stat-info">
               <div className="muted stat-label">{isToday ? '今日' : '当日'}总耗时</div>
               <div className="stat-value">{formatHM(totalMin)}</div>
-              <div className="muted stat-sub">{dayRecords.length} 条 · 目标 8h</div>
+              <div className="muted stat-sub">{dayRecords.length} 条 · 目标 {dailyCapHours}h</div>
             </div>
           </div>
         </div>
@@ -104,17 +135,29 @@ export function TodayPage() {
         </div>
       ) : (
         <div className="tl">
-          {[...dayRecords]
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .map((r) => (
-              <TimelineEntry
-                key={r.id}
-                record={r}
-                project={r.projectId ? projects.find((p) => p.id === r.projectId) : undefined}
-                onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })}
-                onDelete={(id) => setDelId(id)}
-              />
-            ))}
+          {groups.map((g) => {
+            const gMin = g.items.reduce((s, r) => s + (r.durationMin ?? 0), 0);
+            return (
+              <section key={g.half} className="tl-group">
+                <header className="tl-group-h">
+                  <span className="tl-group-name">{g.label}</span>
+                  <span className="tl-group-meta">
+                    {g.items.length} 条{gMin > 0 && ` · ${formatHM(gMin)}`}
+                  </span>
+                </header>
+                {g.items.map((r) => (
+                  <TimelineEntry
+                    key={r.id}
+                    record={r}
+                    projects={projects}
+                    onUpdate={onEntryUpdate}
+                    onEdit={(rec) => setEditor({ open: true, half: rec.half, record: rec })}
+                    onDelete={onEntryDelete}
+                  />
+                ))}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -127,16 +170,6 @@ export function TodayPage() {
         projects={projects}
         tasks={tasks}
         onSubmit={onSubmit}
-      />
-
-      <ConfirmDialog
-        open={delId !== null}
-        title="删除这条记录？"
-        message="删除后无法恢复。确定要删除该条工作记录吗？"
-        confirmText="删除"
-        destructive
-        onCancel={() => setDelId(null)}
-        onConfirm={() => { if (delId) void remove(delId); setDelId(null); }}
       />
 
       <ChoerodonSyncModal

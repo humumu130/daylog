@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Textarea } from '../../ui';
 import type { Half, Project, Task, WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
+import { quantizeMinutes } from '../../services/duration';
 import { HALF_LABEL_CN, HALF_VALUES } from '../../utils/halfDay';
 import { Select } from './Select';
 
@@ -37,8 +38,9 @@ export function RecordEditor({ open, onClose, day, half, record, projects, tasks
   async function save() {
     const text = content.trim();
     if (!text) return;
+    // 0.5h 粒度量化（全链路统一）；空/0/非法 = 无时长
     const parsed = hours.trim() ? parseFloat(hours) : NaN;
-    const durationMin = !isNaN(parsed) ? Math.round(parsed * 60) : null;
+    const durationMin = !isNaN(parsed) && parsed > 0 ? quantizeMinutes(parsed * 60) : null;
     await onSubmit(
       {
         content: text,
