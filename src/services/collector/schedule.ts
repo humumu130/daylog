@@ -64,10 +64,12 @@ export function collectOnce(getSettings: () => AppSettings): Promise<CollectPass
   return inFlight;
 }
 
-/** LLM 是否真正可用（claude-code 本地 CLI 恒可用；云端需 baseUrl+key） */
-function llmReady(settings: AppSettings): boolean {
+/** LLM 是否真正可用（claude-code 本地 CLI 恒可用；云端需 baseUrl + 内联/keychain key） */
+async function llmReady(settings: AppSettings): Promise<boolean> {
   if (settings.llm.kind === 'claude-code') return true;
-  return Boolean(settings.llm.baseUrl && settings.llm.apiKey);
+  if (!settings.llm.baseUrl) return false;
+  const { hasLlmApiKey } = await import('../llmKey');
+  return hasLlmApiKey(settings.llm);
 }
 
 async function runPass(settings: AppSettings): Promise<CollectPassResult> {
@@ -107,7 +109,7 @@ async function runPass(settings: AppSettings): Promise<CollectPassResult> {
 
   // ⑤ 按日分组整合（同日同项目必进同一次 LLM 调用——引擎内分组保证）。
   //    LLM 未就绪→本轮跳过整合（事件不消费、水位线不提交，配好后自动补上）
-  if (llmReady(settings)) {
+  if (await llmReady(settings)) {
     const byDay = new Map<string, EngineInput[]>();
     for (const x of [...aiInputs, ...commitInputs]) {
       const arr = byDay.get(x.day);

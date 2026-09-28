@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { loadSettings, setSetting, SettingKeys } from '../services/store';
 import { DEFAULT_SETTINGS } from '../services/store';
 import { notifyTheme } from '../services/events';
+import { saveLlmKey } from '../services/llmKey';
 import type { AppSettings } from '../types/models';
 
 interface SettingsState {
@@ -16,6 +17,18 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   loaded: false,
   load: async () => {
     const settings = await loadSettings();
+    // 一次性迁移（P8）：LLM apiKey 明文迁入 OS keychain 后清空落盘字段；
+    // 出网时 llm.ts 走 resolveLlmKey 回落 keychain。失败保留原值下次再迁。
+    if (settings.llm.apiKey) {
+      try {
+        await saveLlmKey(settings.llm.apiKey);
+        const llm = { ...settings.llm, apiKey: '' };
+        await setSetting(SettingKeys.llm, llm);
+        settings.llm = llm;
+      } catch {
+        // keychain 不可用（测试/权限）：不动，配置照旧可用
+      }
+    }
     set({ settings, loaded: true });
     return settings;
   },

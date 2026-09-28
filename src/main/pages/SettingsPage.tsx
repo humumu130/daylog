@@ -29,6 +29,7 @@ import {
   ruleMatchProjects,
 } from '../../services/choerodonMap';
 import { exportToFile, importFromFile } from '../../services/backup';
+import { clearLlmKey, loadLlmKey, saveLlmKey } from '../../services/llmKey';
 import { defaultScanRoots } from '../../services/collector';
 import { addDays } from '../../utils/date';
 import './settings-ia.css';
@@ -271,9 +272,7 @@ export function SettingsPage() {
                   <div className="set-row"><div className="set-label"><span>API 地址<HelpTip text="智谱默认 https://open.bigmodel.cn/v1" /></span></div>
                     <Input value={settings.llm.baseUrl ?? ''} onChange={(e) => setLlm({ baseUrl: e.target.value })} className="grow" />
                   </div>
-                  <div className="set-row"><div className="set-label"><span>API Key</span></div>
-                    <Input type="password" value={settings.llm.apiKey ?? ''} onChange={(e) => setLlm({ apiKey: e.target.value })} className="grow" placeholder="sk-..." />
-                  </div>
+                  <LlmKeyField config={settings.llm} onClearInline={() => setLlm({ apiKey: '' })} flash={flash} />
                   <div className="set-row"><div className="set-label"><span>模型</span></div>
                     <Input value={settings.llm.model ?? ''} onChange={(e) => setLlm({ model: e.target.value })} placeholder="glm-4-flash" />
                   </div>
@@ -688,6 +687,86 @@ function ReportTemplateSection() {
         onConfirm={() => { if (delId) void del(delId); setDelId(null); }}
       />
     </section>
+  );
+}
+
+/** LLM API Key 行（P8 keychain 化）：明文只进 OS 钥匙串；内联残留（迁移失败保留）随保存/清除一并清空 */
+function LlmKeyField({ config, onClearInline, flash }: { config: LlmConfig; onClearInline: () => void; flash: (m: string) => void }) {
+  const inlineLeft = (config.apiKey ?? '') !== '';
+  const [stored, setStored] = useState(inlineLeft); // 内联残留先按已配置算
+  const [showInput, setShowInput] = useState(!inlineLeft);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (inlineLeft) return; // 内联已有：不再探测 keychain
+    let stale = false;
+    void loadLlmKey().then((k) => {
+      if (!stale) setStored(k !== null);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [inlineLeft]);
+
+  async function save() {
+    const k = draft.trim();
+    if (!k) return;
+    setBusy(true);
+    try {
+      await saveLlmKey(k);
+      if (inlineLeft) onClearInline();
+      setStored(true);
+      setDraft('');
+      setShowInput(false);
+      flash('API Key 已保存到钥匙串');
+    } catch (e) {
+      flash(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    try {
+      await clearLlmKey();
+      if (inlineLeft) onClearInline();
+      setStored(false);
+      setShowInput(true);
+      flash('已清除 API Key');
+    } catch (e) {
+      flash(`清除失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return (
+    <div className="set-row">
+      <div className="set-label">
+        <span>API Key<HelpTip text="明文只存系统钥匙串，配置文件不落盘；本地 Claude Code 通道无需配置" /></span>
+        {stored && <span className="subtle cho-pat-tail">已保存</span>}
+      </div>
+      {!stored || showInput ? (
+        <div className="row gap-sm">
+          <Input
+            type="password"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="sk-…"
+            className="grow"
+            style={{ maxWidth: 260 }}
+          />
+          <Button size="sm" variant="primary" loading={busy} onClick={() => void save()}>保存到钥匙串</Button>
+          {stored && (
+            <Button size="sm" onClick={() => { setShowInput(false); setDraft(''); }}>取消</Button>
+          )}
+        </div>
+      ) : (
+        <div className="row gap-sm">
+          <Button size="sm" onClick={() => setShowInput(true)}>更换 Key</Button>
+          <Button size="sm" variant="danger" onClick={() => void remove()}>清除</Button>
+        </div>
+      )}
+    </div>
   );
 }
 

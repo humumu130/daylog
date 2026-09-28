@@ -5,6 +5,7 @@
 import type { LlmConfig, Project } from '../types/models';
 import type { RemoteProject } from './reporters/types';
 import { generateReport } from './llm';
+import { hasLlmApiKey } from './llmKey';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useProjectsStore } from '../stores/useProjectsStore';
 
@@ -93,9 +94,11 @@ function extractJsonArray(text: string): string {
   return text.slice(start, end + 1);
 }
 
-/** LLM 是否可用：claude-code 本地通道，或云端通道配齐 baseUrl+apiKey */
-function llmReady(llm: LlmConfig): boolean {
-  return llm.kind === 'claude-code' || (!!(llm.baseUrl && llm.apiKey) && llm.baseUrl !== '' && llm.apiKey !== '');
+/** LLM 是否可用：claude-code 本地通道，或云端通道配齐 baseUrl + key（内联或 keychain） */
+async function llmReady(llm: LlmConfig): Promise<boolean> {
+  if (llm.kind === 'claude-code') return true;
+  if (!(llm.baseUrl ?? '').trim()) return false;
+  return hasLlmApiKey(llm);
 }
 
 /**
@@ -110,7 +113,7 @@ export async function llmMatchProjects(
 ): Promise<MapSuggestion[]> {
   const pending = rows.filter((r) => r.remoteProjectId === null);
   if (pending.length === 0 || remote.length === 0) return [];
-  if (!llmReady(llm)) return [];
+  if (!(await llmReady(llm))) return [];
 
   const localText = pending.map((r) => `- ${r.localProjectId} ${r.localName}`).join('\n');
   const remoteText = remote.map((r) => `- ${r.id} ${r.name}（编码 ${r.code}）`).join('\n');

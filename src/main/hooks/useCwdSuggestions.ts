@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { makeResolver, type CwdSummary } from '../../services/collector';
 import { llmRefineCwds, ruleSuggestCwds, type Suggestion } from '../../services/configSuggest';
+import { hasLlmApiKey } from '../../services/llmKey';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import type { GitRepo, Project } from '../../types/models';
@@ -133,9 +134,9 @@ export function useCwdSuggestions(): {
         const hitIds = new Set(ruleHits.map((s) => s.id));
         const rest = unmatched.filter((c) => !hitIds.has(`cwd:${c.cwd}`));
 
-        // LLM 语义精配：有 key（云端）或 claude-code 本地通道才真正出网；
+        // LLM 语义精配：有 key（云端内联/keychain 或 claude-code 本地通道）才真正出网；
         // 无 key 时 llmRefineCwds 内部走规则兜底（ruleBased 低置信 new-project），degraded=true
-        const hasLlmKey = llm.kind === 'claude-code' || Boolean(llm.baseUrl && llm.apiKey);
+        const hasLlmKey = llm.kind === 'claude-code' || (Boolean(llm.baseUrl) && (await hasLlmApiKey(llm)));
         let refined: Suggestion[] = [];
         if (rest.length > 0) {
           try {
@@ -183,7 +184,8 @@ export function useCwdSuggestions(): {
     return () => {
       stale = true;
     };
-    // llm 只依赖三个原始字段（settings 对象身份变化不误触发重算）
+    // llm 只依赖三个原始字段（settings 对象身份变化不误触发重算）；
+    // keychain 侧 key 变化不在此响应（设置页保存后返回时 reload 兜底）
   }, [tick, projects, repos, llm.kind, llm.baseUrl, llm.apiKey]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);

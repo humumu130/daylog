@@ -5,6 +5,7 @@ import * as db from '../../services/db';
 import { copyText } from '../../services/clipboard';
 import type { LlmConfig, Project, Report, ReportTemplate } from '../../types/models';
 import { buildMonthSummary, generatePeriodReport, generateReport } from '../../services/llm';
+import { hasLlmApiKey } from '../../services/llmKey';
 import { addDays, monthRange, todayYMD } from '../../utils/date';
 import { daysBetween } from '../../services/allocate';
 
@@ -70,6 +71,18 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
       if (def) setTemplateId(def.id);
     })();
   }, [period]);
+
+  // LLM key 可用性（内联或 keychain，P8）：异步解析成 state 供生成按钮判定
+  const [llmKeyReady, setLlmKeyReady] = useState(false);
+  useEffect(() => {
+    let stale = false;
+    void hasLlmApiKey(llmConfig).then((ok) => {
+      if (!stale) setLlmKeyReady(ok);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [llmConfig]);
 
   // 切换周期时，把起止日期重置为该周期自然范围
   useEffect(() => {
@@ -180,7 +193,7 @@ export function ReportSection({ period, title, reportType, llmConfig, templates,
               </Button>
               <Button size="sm" variant="ghost" icon={<Copy size={14} />} style={{ minWidth: 108 }} onClick={() => void copyText(latest?.body ?? '')} disabled={reports.length === 0} title="复制 Markdown 原文">复制 Markdown</Button>
               <Button size="sm" variant="ghost" icon={<Copy size={14} />} style={{ minWidth: 108 }} onClick={() => void copyText(toPlainText(latest?.body ?? ''))} disabled={reports.length === 0} title="复制纯文本（去掉格式）">复制纯文本</Button>
-              <Button size="sm" variant="primary" style={{ minWidth: 100 }} onClick={() => void generate()} disabled={!llmConfig.apiKey && llmConfig.kind !== 'claude-code'}>
+              <Button size="sm" variant="primary" style={{ minWidth: 100 }} onClick={() => void generate()} disabled={!llmKeyReady && llmConfig.kind !== 'claude-code'}>
                 {reports.length > 0 ? '重新生成' : `生成${title}`}
               </Button>
             </>

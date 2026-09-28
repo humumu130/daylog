@@ -17,6 +17,7 @@ import { RangeAllocModal, type SelectedItem } from '../components/RangeAllocModa
 import { SuggestionList } from '../components/SuggestionList';
 import { useCwdSuggestions } from '../hooks/useCwdSuggestions';
 import { previewConsolidate } from '../../services/collector';
+import { hasLlmApiKey } from '../../services/llmKey';
 import './collect.css';
 
 type Period = 'today' | '7d' | '30d' | 'range';
@@ -92,6 +93,18 @@ export function CollectPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // LLM key 可用性（内联或 keychain，P8）：非同步，异步解析成 state 供提示判定
+  const [llmKeyReady, setLlmKeyReady] = useState(false);
+  useEffect(() => {
+    let stale = false;
+    void hasLlmApiKey(llmConfig).then((ok) => {
+      if (!stale) setLlmKeyReady(ok);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [llmConfig]);
 
   // ---- 手动导入（Git）：原 CollectPage 逻辑原样保留 ----
 
@@ -678,7 +691,7 @@ export function CollectPage() {
         </div>
       )}
 
-      {showSmart && !llmConfig.apiKey && llmConfig.kind !== 'claude-code' && (
+      {showSmart && !llmKeyReady && llmConfig.kind !== 'claude-code' && (
         <div className="set-tip" style={{ marginBottom: 12 }}>⚠ 需在设置配置 LLM 才能智能整合。</div>
       )}
 

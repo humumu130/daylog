@@ -4,6 +4,7 @@ import type { LlmConfig, Project, WorkRecord } from '../types/models';
 import { formatHours } from '../utils/halfDay';
 import { groupBy } from '../utils/groupBy';
 import { scrubText } from './collector/scrub';
+import { resolveLlmKey } from './llmKey';
 
 // ---------- 脱敏总线（单一出网通道，P5·E6） ----------
 // 所有送云端 LLM 的载荷在本函数内统一脱敏（新增任何云端调用走 generateReport 即自动覆盖）。
@@ -49,6 +50,9 @@ export async function generateReport(config: LlmConfig, system: string, user: st
     }
     const base = (config.baseUrl ?? '').replace(/\/$/, '');
     if (!base) throw new Error('未配置 API 地址，请在设置中填写 LLM 的 API 地址');
+    // API Key：settings 内联值（迁移过渡期）优先，空则回落 OS keychain（P8）
+    const apiKey = await resolveLlmKey(config.apiKey);
+    if (!apiKey) throw new Error('未配置 API Key，请在设置·LLM 保存到钥匙串');
     // 脱敏总线：云端载荷出网前必经（本地 claude 通道在上方分支，不经此处）
     const sysOut = scrubBusEnabled ? scrubText(system).text : system;
     const userOut = scrubBusEnabled ? scrubText(user).text : user;
@@ -59,7 +63,7 @@ export async function generateReport(config: LlmConfig, system: string, user: st
     try {
       res = await fetch(`${base}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey ?? ''}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: config.model || 'glm-4-flash',
           messages: [{ role: 'system', content: sysOut }, { role: 'user', content: userOut }],
