@@ -1,4 +1,4 @@
-import { CalendarRange, ChartLine, Clock, Inbox, ListTodo, MoonStar, RefreshCw, Settings, Sparkles, Undo2, Zap } from 'lucide-react';
+import { CalendarRange, ChartLine, Clock, CloudUpload, Inbox, ListTodo, MoonStar, RefreshCw, Settings, Sparkles, Undo2, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toggleQuickCapture, toggleWidget } from '../services/window';
 import { manualScanNow, rebuildDayNow, undoDay } from '../services/collector';
@@ -113,6 +113,16 @@ export const COMMANDS: Command[] = [
         })
         .catch(() => toast('撤销失败，请稍后重试'));
     },
+  },
+  {
+    id: 'choerodon-batch-sync',
+    title: '批量上报',
+    sub: '打开猪齿鱼批量上报向导',
+    group: '快捷操作',
+    icon: CloudUpload,
+    keywords: ['choerodon', '猪齿鱼', '上报', '工时', 'sync'],
+    // 向导挂在 AppShell 层（MainApp），经事件唤起——不依赖当前页面路由
+    run: () => window.dispatchEvent(new CustomEvent('daylog:open-batch-sync')),
   },
   { id: 'page-today', title: '今日', group: '页面', icon: Clock, hotkey: '⌘1', keywords: ['today'], run: (ctx) => ctx.navigate('/today') },
   { id: 'page-history', title: '月历', group: '页面', icon: CalendarRange, hotkey: '⌘2', keywords: ['calendar', '月历', '日历'], run: (ctx) => ctx.navigate('/history') },

@@ -211,3 +211,82 @@
   padding: 2px 0;
   overflow-wrap: anywhere;
 }
+
+/* ============================================================
+   P8 设置页·猪齿鱼分区：PAT 尾号 / 两段式测试 / 映射健康 / AI 匹配。
+   铁律同上：只引用 --dl-* token。
+   ============================================================ */
+.cho-pat-tail {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+/* 两段式连接测试：按钮 + 状态消息同行 */
+.cho-test {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.cho-test-msg {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  overflow-wrap: anywhere;
+  max-width: 320px;
+}
+.cho-test-msg.is-ok,
+.cho-test-msg.is-s2 {
+  color: var(--dl-success);
+}
+.cho-test-msg.is-fail {
+  color: var(--dl-danger);
+}
+
+/* 映射健康条（常驻）：warn 黄 / danger 红 / ok 绿 / info 灰 */
+.cho-health {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-2);
+  margin: var(--dl-space-2) 0;
+}
+.cho-health-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-2) var(--dl-space-3);
+  border-radius: var(--dl-radius-md);
+  font-size: var(--dl-text-sm);
+  line-height: 1.5;
+}
+.cho-health-item > span {
+  min-width: 0;
+}
+.cho-health-item.is-warn {
+  background: var(--dl-warning-subtle);
+  color: var(--dl-warning);
+}
+.cho-health-item.is-danger {
+  background: var(--dl-danger-subtle);
+  color: var(--dl-danger);
+}
+.cho-health-item.is-ok {
+  background: var(--dl-success-subtle);
+  color: var(--dl-success);
+}
+.cho-health-item.is-info {
+  background: var(--dl-bg-muted);
+  color: var(--dl-fg-3);
+}
+
+/* AI 匹配映射块：标题行 + 建议列表 */
+.cho-map-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-2);
+  scroll-margin-top: var(--dl-space-4);
+}
+.cho-map-list {
+  /* SuggestionList 自带卡片样式，这里只控间距 */
+}

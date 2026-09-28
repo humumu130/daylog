@@ -25,6 +25,7 @@ import { autoBackup } from '../services/backup';
 import { useUiStore } from '../stores/useUiStore';
 import { startReminder } from '../services/reminder';
 import { CommandPalette } from './components/CommandPalette';
+import { ChoerodonBatchModal } from './components/ChoerodonBatchModal';
 import { ToastHost } from './components/UndoToast';
 import './app.css';
 import './pages.css';
@@ -56,6 +57,15 @@ export function MainApp() {
   const fetchTasks = useTasksStore((s) => s.fetch);
   const fetchRecords = useRecordsStore((s) => s.fetch);
   const [ready, setReady] = useState(false);
+  // 猪齿鱼批量上报向导（P8）：单实例挂 AppShell 层，今日页日菜单 / 命令面板经事件唤起，
+  // 任意页面可用（Modal 自取记录，与页面路由解耦）
+  const [batchSyncOpen, setBatchSyncOpen] = useState(false);
+
+  useEffect(() => {
+    const onOpenBatchSync = () => setBatchSyncOpen(true);
+    window.addEventListener('daylog:open-batch-sync', onOpenBatchSync);
+    return () => window.removeEventListener('daylog:open-batch-sync', onOpenBatchSync);
+  }, []);
 
   // 主题单一通道：html[data-theme] 驱动 --dl- token（patch 侧已广播其它窗口）
   useEffect(() => {
@@ -175,6 +185,7 @@ export function MainApp() {
           </main>
         </div>
         <CommandPalette />
+        <ChoerodonBatchModal open={batchSyncOpen} onClose={() => setBatchSyncOpen(false)} />
         <ToastHost />
       </HashRouter>
     </div>

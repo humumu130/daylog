@@ -42,6 +42,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (partial.autoBackupDir !== undefined) entries.push([SettingKeys.autoBackupDir, partial.autoBackupDir]);
     if (partial.collect !== undefined) entries.push([SettingKeys.collect, partial.collect]);
     if (partial.choerodon !== undefined) entries.push([SettingKeys.choerodon, partial.choerodon]);
+    if (partial.reportPolicy !== undefined) entries.push([SettingKeys.reportPolicy, partial.reportPolicy]);
     await Promise.all(entries.map(([k, v]) => setSetting(k, v)));
     // 主题变更：广播给其它窗口（待办插件/快速记录）跟随切换
     if (partial.theme !== undefined) void notifyTheme(partial.theme);

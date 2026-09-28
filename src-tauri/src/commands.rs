@@ -117,60 +117,31 @@ pub async fn run_claude(prompt: String) -> Result<String, String> {
     Ok(raw)
 }
 
-/// 猪齿鱼登录：2 步 curl（GET 建 session → POST + 跟随重定向 → 从最终 URL 提取 token）
+/// OS keychain 写入凭据（service + account 定位条目，值非空字符串）
 #[tauri::command]
-pub async fn choerodon_login_cmd(base_url: String, username: String, encrypted_password: String) -> Result<String, String> {
-    use std::process::Stdio;
+pub async fn secret_put(service: String, account: String, value: String) -> Result<(), String> {
+    let entry = keyring::Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    entry.set_password(&value).map_err(|e| e.to_string())
+}
 
-    let cookie_file = std::env::temp_dir().join(format!("choerodon_{}.txt", std::process::id()));
-    let cookie_path = cookie_file.to_string_lossy().to_string();
-    let login_url = format!("{}/oauth/login", base_url);
-    let devnull = if cfg!(windows) { "NUL" } else { "/dev/null" };
-    let flags = 0x0800_0000u32;
-
-    async fn run_curl(args: Vec<String>, flags: u32) -> Result<String, String> {
-        let mut cmd = tokio::process::Command::new("curl");
-        cmd.args(&args);
-        #[cfg(windows)] { cmd.creation_flags(flags); }
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-        let out = cmd.output().await.map_err(|e| format!("curl 失败：{e}"))?;
-        Ok(String::from_utf8_lossy(&out.stdout).to_string())
+/// OS keychain 读取凭据：条目不存在返回 Ok(None)（与「存在但值为空」区分）
+#[tauri::command]
+pub async fn secret_get(service: String, account: String) -> Result<Option<String>, String> {
+    let entry = keyring::Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(v) => Ok(Some(v)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
     }
+}
 
-    // 1. GET 登录页（建 session，存 cookie）
-    let _ = run_curl(vec![
-        "-s".into(), "-o".into(), devnull.into(),
-        "-c".into(), cookie_path.clone(),
-        login_url.clone(),
-    ], flags).await?;
-
-    // 2. POST 登录 + -L 跟随所有重定向（用 --data-urlencode 自动编码，避免 +/= 破坏表单）
-    let result = run_curl(vec![
-        "-s".into(), "-L".into(),
-        "-o".into(), devnull.into(),
-        "-w".into(), "\n___FINAL_URL___%{url_effective}".into(),
-        "-b".into(), cookie_path.clone(),
-        "-c".into(), cookie_path.clone(),
-        "--data-urlencode".into(), format!("username={}", username),
-        "--data-urlencode".into(), format!("password={}", encrypted_password),
-        login_url.clone(),
-    ], flags).await?;
-
-    let _ = std::fs::remove_file(&cookie_file);
-
-    // 从输出里找 ___FINAL_URL___ 标记后的最终 URL
-    let final_url = result
-        .split("___FINAL_URL___")
-        .nth(1)
-        .unwrap_or("")
-        .trim()
-        .to_string();
-
-    if final_url.contains("access_token=") {
-        if let Some(token) = final_url.split("access_token=").nth(1).and_then(|s| s.split('&').next()) {
-            if !token.is_empty() { return Ok(token.to_string()); }
-        }
+/// OS keychain 删除凭据：条目不存在视为成功
+#[tauri::command]
+pub async fn secret_delete(service: String, account: String) -> Result<(), String> {
+    let entry = keyring::Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
     }
-
-    Err(format!("登录失败。最终 URL：{}", &final_url[..final_url.len().min(200)]))
 }

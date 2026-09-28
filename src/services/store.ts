@@ -28,6 +28,7 @@ export const SettingKeys = {
   autoBackupDir: 'autoBackupDir',
   collect: 'collect',
   choerodon: 'choerodon',
+  reportPolicy: 'reportPolicy',
 } as const;
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
@@ -78,10 +79,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     overtimeCapHours: 20,
   },
   choerodon: null,
+  reportPolicy: 'fact' as const,
 };
 
 export async function loadSettings(): Promise<AppSettings> {
-  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, sidebarLabels, autoBackupEnabled, autoBackupKeep, autoBackupDir, collect, choerodon] = await Promise.all([
+  const [hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, sidebarLabels, autoBackupEnabled, autoBackupKeep, autoBackupDir, collect, choerodon, reportPolicy] = await Promise.all([
     getSetting<string>(SettingKeys.hotkey, DEFAULT_SETTINGS.hotkey),
     getSetting<string>(SettingKeys.todoHotkey, DEFAULT_SETTINGS.todoHotkey),
     getSetting<string>(SettingKeys.mainHotkey, DEFAULT_SETTINGS.mainHotkey),
@@ -101,6 +103,7 @@ export async function loadSettings(): Promise<AppSettings> {
     getSetting<string>(SettingKeys.autoBackupDir, DEFAULT_SETTINGS.autoBackupDir),
     getSetting<CollectSettings>(SettingKeys.collect, DEFAULT_SETTINGS.collect),
     getSetting<ChoerodonSettings | null>(SettingKeys.choerodon, DEFAULT_SETTINGS.choerodon),
+    getSetting<'fact' | 'fill'>(SettingKeys.reportPolicy, DEFAULT_SETTINGS.reportPolicy),
   ]);
-  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, sidebarLabels, autoBackupEnabled, autoBackupKeep, autoBackupDir, collect, choerodon };
+  return { hotkey, todoHotkey, mainHotkey, theme, boundaries, llm, repos, gitImportMode, gitAuthor, autostart, remindTime, remindMinMinutes, dailyCapHours, sidebarLabels, autoBackupEnabled, autoBackupKeep, autoBackupDir, collect, choerodon, reportPolicy };
 }

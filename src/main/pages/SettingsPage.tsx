@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button, Input, Segmented, Switch } from '../../ui';
 import { Plus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useProjectsStore } from '../../stores/useProjectsStore';
@@ -8,12 +8,29 @@ import { HotkeyField } from '../components/HotkeyField';
 import { Select } from '../components/Select';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HelpTip } from '../components/HelpTip';
+import { SuggestionList, type SuggestionRow } from '../components/SuggestionList';
+import { setReportPolicy } from '../components/ChoerodonBatchModal';
 import type { AppSettings, ChoerodonSettings, GitRepo, LlmConfig, ReportTemplate } from '../../types/models';
 import * as db from '../../services/db';
 import { generateReport } from '../../services/llm';
-import { choerodonLogin, choerodonGetProjects, type ChoerodonConfig } from '../../services/choerodon';
+import {
+  choerodonReporter,
+  clearPat,
+  getReporterCtx,
+  savePat,
+  type RemoteProject,
+  type ReporterCtx,
+} from '../../services/reporters';
+import {
+  applyProjectMap,
+  llmMatchProjects,
+  mapHealth,
+  rememberRule,
+  ruleMatchProjects,
+} from '../../services/choerodonMap';
 import { exportToFile, importFromFile } from '../../services/backup';
 import { defaultScanRoots } from '../../services/collector';
+import { addDays } from '../../utils/date';
 import './settings-ia.css';
 
 /** 设置页二级导航分区键（P4 信息架构重排：左导航 + 右分区条件渲染） */
@@ -219,6 +236,22 @@ export function SettingsPage() {
                   />
                   <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时/天</span>
                 </div>
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>填报策略</span>
+                  <span className="subtle">本地日志永远如实；策略只影响上报向导与导出的时长口径</span>
+                </div>
+                <Segmented
+                  aria-label="填报策略"
+                  size="sm"
+                  options={[
+                    { value: 'fact', label: '如实逐条' },
+                    { value: 'fill', label: '按目标补齐' },
+                  ]}
+                  value={settings.reportPolicy}
+                  onChange={(v) => void setReportPolicy(v)}
+                />
               </div>
             </section>
           )}
@@ -685,71 +718,350 @@ function LlmTestButton({ config }: { config: LlmConfig }) {
   );
 }
 
-/** 猪齿鱼对接设置区 */
+/** 猪齿鱼对接设置区（P8 重写：PAT 钥匙串 + 项目映射 AI 匹配 + 映射健康 + 上报窗口） */
 function ChoerodonSection({ settings, patch, flash }: { settings: AppSettings; patch: (p: Partial<AppSettings>) => Promise<void>; flash: (m: string) => void }) {
-  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
-  const [testMsg, setTestMsg] = useState('');
+  const projects = useProjectsStore((s) => s.projects);
+  const [patDraft, setPatDraft] = useState('');
+  const [showPatInput, setShowPatInput] = useState(false);
+  const [patBusy, setPatBusy] = useState(false);
+  const [test, setTest] = useState<{ phase: 'idle' | 's1' | 's2' | 'ok' | 'fail'; msg: string }>({ phase: 'idle', msg: '' });
+  const [remoteProjects, setRemoteProjects] = useState<RemoteProject[]>([]);
+  const [remoteError, setRemoteError] = useState('');
+  const [matchRows, setMatchRows] = useState<SuggestionRow[] | null>(null);
+  const [matchBusy, setMatchBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  /** 建议行的原始目标（应用时对比出「用户改过目标」的行，用于 rememberRule 沉淀规则） */
+  const matchOriginRef = useRef<Record<string, string>>({});
+
   const c = settings.choerodon;
+  const activeProjects = useMemo(() => projects.filter((p) => p.isActive), [projects]);
 
   function patchC(partial: Partial<ChoerodonSettings>) {
     if (!c) return;
     void patch({ choerodon: { ...c, ...partial } });
   }
 
-  async function testConnection() {
-    if (!c || !c.username || !c.encryptedPassword) { flash('请填邮箱和加密密码'); return; }
-    setTestStatus('testing'); setTestMsg('');
+  function errMsg(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+  }
+
+  // ---- PAT（明文只进 OS 钥匙串；settings 只留尾 4 位） ----
+  async function savePatDraft() {
+    if (!c) return;
+    const pat = patDraft.trim();
+    if (!pat) return;
+    setPatBusy(true);
     try {
-      const cfg: ChoerodonConfig = { baseUrl: c.baseUrl, username: c.username, encryptedPassword: c.encryptedPassword, orgId: c.orgId };
-      const token = await choerodonLogin(cfg);
-      const projects = await choerodonGetProjects(cfg, token);
-      // 自动回填 orgId
-      if (!c.orgId) void patch({ choerodon: { ...c, orgId: token.orgId } });
-      setTestStatus('ok');
-      setTestMsg(`✓ ${projects.length} 个项目可访问`);
+      await savePat(pat);
+      await patch({ choerodon: { ...c, patTail: pat.slice(-4) } });
+      setPatDraft('');
+      setShowPatInput(false);
+      setTest({ phase: 'idle', msg: '' });
+      flash('PAT 已保存到钥匙串');
     } catch (e) {
-      setTestStatus('fail');
-      setTestMsg(e instanceof Error ? e.message : String(e));
+      flash(`保存失败：${errMsg(e)}`);
+    } finally {
+      setPatBusy(false);
     }
+  }
+
+  async function removePat() {
+    if (!c) return;
+    try {
+      await clearPat();
+      await patch({ choerodon: { ...c, patTail: '' } });
+      setTest({ phase: 'idle', msg: '' });
+      setRemoteProjects([]);
+      setRemoteError('PAT 已清除，未连接');
+      flash('已清除 PAT');
+    } catch (e) {
+      flash(`清除失败：${errMsg(e)}`);
+    }
+  }
+
+  // ---- 连接（两段式测试：testConnection → listProjects） ----
+  async function doTest() {
+    if (!c) return;
+    setTest({ phase: 's1', msg: '正在验证 PAT（用户 / 组织）…' });
+    try {
+      const base = await getReporterCtx();
+      if (!base) {
+        setTest({ phase: 'fail', msg: '未配置：请先填 API 地址并保存 PAT' });
+        return;
+      }
+      const ids = await choerodonReporter.testConnection(base);
+      if (!c.orgId && ids.orgId) void patch({ choerodon: { ...c, orgId: ids.orgId } });
+      setTest({ phase: 's2', msg: `✓ 连接成功（用户 ${ids.userId} · 组织 ${ids.orgId || '—'}），正在拉取项目…` });
+      const ctx: ReporterCtx = { ...base, userId: ids.userId, orgId: base.orgId || ids.orgId };
+      const projs = await choerodonReporter.listProjects(ctx);
+      setRemoteProjects(projs);
+      setRemoteError('');
+      setTest({ phase: 'ok', msg: `✓ 用户 ${ids.userId} · 组织 ${ids.orgId || '—'} · ${projs.length} 个项目可访问` });
+    } catch (e) {
+      setTest({ phase: 'fail', msg: errMsg(e) });
+    }
+  }
+
+  /** 连接并拉远程项目列表（静默健康探测 / 重新匹配兜底共用） */
+  async function connectAndLoad(): Promise<RemoteProject[]> {
+    const base = await getReporterCtx();
+    if (!base) throw new Error('未配置 PAT 或 API 地址');
+    const ids = await choerodonReporter.testConnection(base);
+    if (c && !c.orgId && ids.orgId) void patch({ choerodon: { ...c, orgId: ids.orgId } });
+    const ctx: ReporterCtx = { ...base, userId: ids.userId, orgId: base.orgId || ids.orgId };
+    return choerodonReporter.listProjects(ctx);
+  }
+
+  // 进入分区静默拉一次远程项目（mapHealth 需要）；失败只在健康条说明，不弹错
+  useEffect(() => {
+    if (!c || remoteProjects.length > 0 || remoteError !== '') return;
+    let alive = true;
+    void (async () => {
+      try {
+        const projs = await connectAndLoad();
+        if (alive) setRemoteProjects(projs);
+      } catch (e) {
+        if (alive) setRemoteError(errMsg(e));
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c]);
+
+  // ---- 映射健康（常驻：warnings 黄 / broken 红） ----
+  const health = useMemo(() => {
+    if (remoteProjects.length === 0) return null;
+    return mapHealth(activeProjects, remoteProjects, c?.projectMap ?? {});
+  }, [activeProjects, remoteProjects, c]);
+
+  // ---- AI 匹配映射 ----
+  async function runMatch(remote: RemoteProject[]) {
+    if (!c) return;
+    setMatchBusy(true);
+    try {
+      // 规则三路：keywords===code / 仓库尾段===code / 名称归一化；未命中行送 LLM 精配
+      const repoPaths: Record<string, string[]> = {};
+      for (const r of settings.repos) {
+        if (r.projectId) (repoPaths[r.projectId] ??= []).push(r.path);
+      }
+      const rule = ruleMatchProjects(activeProjects, remote, repoPaths);
+      let rows = rule;
+      try {
+        const llm = await llmMatchProjects(rule, remote, settings.llm);
+        if (llm.length > 0) {
+          const byId = new Map(llm.map((r) => [r.localProjectId, r]));
+          rows = rule.map((r) => byId.get(r.localProjectId) ?? r);
+        }
+      } catch {
+        // LLM 失败不影响规则结果，静默降级（行上「规则」徽标可辨）
+      }
+      const origin: Record<string, string> = {};
+      for (const s of rows) origin[s.localProjectId] = s.remoteProjectId ?? '';
+      matchOriginRef.current = origin;
+      const opts = [
+        { id: '', label: '不映射' },
+        ...remote.map((r) => ({ id: r.id, label: `${r.name}（${r.code}）` })),
+      ];
+      setMatchRows(
+        rows.map((s) => ({
+          id: s.localProjectId,
+          summary: s.localName,
+          detail: s.remoteName ? `${s.reason} → ${s.remoteName}` : s.reason,
+          confidence: s.confidence,
+          ruleBased: s.ruleBased,
+          kind: 'map-project' as const,
+          targetOptions: opts,
+          targetId: s.remoteProjectId ?? (c.projectMap[s.localProjectId] ?? ''),
+        })),
+      );
+    } finally {
+      setMatchBusy(false);
+    }
+  }
+
+  async function rematch() {
+    if (!c) return;
+    if (remoteProjects.length === 0) {
+      setMatchBusy(true);
+      try {
+        const projs = await connectAndLoad();
+        setRemoteProjects(projs);
+        setRemoteError('');
+        setMatchBusy(false);
+        await runMatch(projs);
+      } catch (e) {
+        setMatchBusy(false);
+        flash(`连接失败：${errMsg(e)}`);
+      }
+      return;
+    }
+    await runMatch(remoteProjects);
+  }
+
+  function onMatchTarget(id: string, targetId: string) {
+    setMatchRows((prev) => (prev ?? []).map((r) => (r.id === id ? { ...r, targetId } : r)));
+  }
+  function onMatchDismiss(id: string) {
+    setMatchRows((prev) => (prev ?? []).filter((r) => r.id !== id));
+  }
+
+  async function applyMatches(selected: SuggestionRow[]) {
+    const rows = selected.filter((r) => r.targetId !== '');
+    if (rows.length === 0) return;
+    try {
+      await applyProjectMap(rows.map((r) => ({ localProjectId: r.id, remoteProjectId: r.targetId })));
+      // 用户改过目标的行（≠建议原值）沉淀规则：远程 code 记进本地项目 keywords
+      for (const r of rows) {
+        if (matchOriginRef.current[r.id] === r.targetId) continue;
+        const code = remoteProjects.find((p) => p.id === r.targetId)?.code;
+        if (code) void rememberRule(r.id, code).catch(() => undefined);
+      }
+      flash(`已应用 ${rows.length} 项映射`);
+      const applied = new Set(rows.map((r) => r.id));
+      setMatchRows((prev) => (prev ?? []).filter((r) => !applied.has(r.id)));
+    } catch (e) {
+      flash(`应用失败：${errMsg(e)}`);
+    }
+  }
+
+  /** 健康条 → 映射区一键跳转 */
+  function scrollToMap() {
+    mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   return (
     <section className="card set-section">
-      <h3 className="set-h">猪齿鱼对接 <HelpTip text="把工作日志自动上报到猪齿鱼系统。公司专属功能，不进开源仓库。需从浏览器 F12 抓 /oauth/login 请求体里 password= 后的加密密码(base64)。" /></h3>
+      <h3 className="set-h">猪齿鱼对接 <HelpTip text="把工作日志批量上报到猪齿鱼（PAT 直连，明文只存系统钥匙串）。公司专属功能，不进开源仓库。" /></h3>
       <div className="set-row">
         <div className="set-label"><span>启用</span></div>
-        <Switch checked={!!c} onChange={(on) => void patch({ choerodon: on ? (c ?? { baseUrl: 'https://api.choerodon.com.cn', username: '', encryptedPassword: '', orgId: '' }) : null })} />
+        <Switch checked={!!c} onChange={(on) => void patch({ choerodon: on ? (c ?? { baseUrl: 'https://api.choerodon.com.cn', orgId: '', patTail: '', projectMap: {}, lastSyncDay: '' }) : null })} />
       </div>
       {c && (
         <>
           <div className="set-row">
             <div className="set-label"><span>API 地址</span></div>
-            <Input value={c.baseUrl} onChange={(e) => patchC({ baseUrl: e.target.value })} className="grow" />
+            <Input value={c.baseUrl} onChange={(e) => patchC({ baseUrl: e.target.value })} className="grow" placeholder="https://api.choerodon.com.cn" />
           </div>
           <div className="set-row">
-            <div className="set-label"><span>用户名（邮箱）</span></div>
-            <Input value={c.username} onChange={(e) => patchC({ username: e.target.value })} className="grow" placeholder="如 huanglin@shac.com.cn" />
-          </div>
-          <div className="set-row">
-            <div className="set-label"><span>加密密码</span><HelpTip text="F12 → Network → POST /oauth/login → Payload → password= 后面的值(base64，含%3D%3D)" /></div>
-            <Input type="password" value={c.encryptedPassword} onChange={(e) => patchC({ encryptedPassword: e.target.value })} className="grow" placeholder="GZ1Brj...%3D%3D" />
-          </div>
-          <div className="set-row">
-            <div className="set-label"><span>组织 ID</span><HelpTip text="留空则登录后自动回填" /></div>
+            <div className="set-label"><span>组织 ID<HelpTip text="留空则连接成功后自动回填" /></span></div>
             <Input value={c.orgId} onChange={(e) => patchC({ orgId: e.target.value })} className="grow" placeholder="自动回填" />
           </div>
           <div className="set-row">
-            <div className="set-label"><span>连接测试</span></div>
-            <div className="row gap-sm">
-              <Button size="sm" onClick={() => void testConnection()} disabled={testStatus === 'testing'}>
-                {testStatus === 'testing' ? '测试中…' : '测试连接'}
-              </Button>
-              {testStatus === 'ok' && <span className="muted" style={{ color: 'var(--accent)' }}>{testMsg}</span>}
-              {testStatus === 'fail' && <span className="muted" style={{ color: '#e81123', fontSize: 12 }}>✗ {testMsg.slice(0, 80)}</span>}
+            <div className="set-label">
+              <span>PAT<HelpTip text="个人访问令牌：猪齿鱼 → 个人中心 → 个人访问令牌 生成；明文只存系统钥匙串，配置里仅留尾 4 位" /></span>
+              {c.patTail && <span className="subtle cho-pat-tail">••••{c.patTail}</span>}
             </div>
+            {c.patTail === '' || showPatInput ? (
+              <div className="row gap-sm">
+                <Input
+                  type="password"
+                  value={patDraft}
+                  onChange={(e) => setPatDraft(e.target.value)}
+                  placeholder="粘贴 PAT…"
+                  className="grow"
+                  style={{ maxWidth: 260 }}
+                />
+                <Button size="sm" variant="primary" loading={patBusy} onClick={() => void savePatDraft()}>保存到钥匙串</Button>
+                {c.patTail !== '' && (
+                  <Button size="sm" onClick={() => { setShowPatInput(false); setPatDraft(''); }}>取消</Button>
+                )}
+              </div>
+            ) : (
+              <div className="row gap-sm">
+                <Button size="sm" onClick={() => setShowPatInput(true)}>更换 PAT</Button>
+                <Button size="sm" variant="danger" onClick={() => void removePat()}>清除</Button>
+              </div>
+            )}
+          </div>
+          <div className="set-row">
+            <div className="set-label"><span>连接测试</span><span className="subtle">两段式：先验证用户/组织，再拉取项目</span></div>
+            <div className="cho-test">
+              <Button size="sm" onClick={() => void doTest()} disabled={test.phase === 's1' || test.phase === 's2'}>
+                {test.phase === 's1' || test.phase === 's2' ? '测试中…' : '测试连接'}
+              </Button>
+              {test.msg && (
+                <span className={`cho-test-msg is-${test.phase}`}>{test.phase === 'fail' ? `✗ ${test.msg.slice(0, 120)}` : test.msg}</span>
+              )}
+            </div>
+          </div>
+
+          {/* 映射健康（常驻） */}
+          <div className="cho-health">
+            {remoteError !== '' ? (
+              <div className="cho-health-item is-warn">
+                <span>未能连接猪齿鱼，映射健康检查暂不可用（{remoteError.slice(0, 100)}）</span>
+                <Button size="sm" onClick={() => void doTest()}>去测试连接</Button>
+              </div>
+            ) : health === null ? (
+              <div className="cho-health-item is-info">正在连接猪齿鱼以检查映射…</div>
+            ) : (
+              <>
+                {health.broken.length > 0 && (
+                  <div className="cho-health-item is-danger">
+                    <span>{health.broken.length} 个映射指向不存在的远程项目：{health.broken.map((b) => b.name).join('、')}</span>
+                    <Button size="sm" onClick={scrollToMap}>查看映射</Button>
+                  </div>
+                )}
+                {health.warnings.length > 0 && (
+                  <div className="cho-health-item is-warn">
+                    <span>{health.warnings.length} 个本地项目未映射（上报向导将跳过这些项目的记录）：{health.warnings.map((w) => w.name).join('、')}</span>
+                    <Button size="sm" onClick={scrollToMap}>查看映射</Button>
+                  </div>
+                )}
+                {health.broken.length === 0 && health.warnings.length === 0 && (
+                  <div className="cho-health-item is-ok">映射健康：{activeProjects.length} 个本地项目全部有效映射</div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* AI 匹配映射 */}
+          <div ref={mapRef} className="cho-map-block">
+            <div className="set-row" style={{ marginBottom: 0 }}>
+              <div className="set-label">
+                <span>AI 匹配映射<HelpTip text="规则三路（关键词/仓库名/名称归一化）优先，未命中行送 LLM 精配；应用后写回映射表" /></span>
+                <span className="subtle">{remoteProjects.length > 0 ? `远程 ${remoteProjects.length} 个项目` : '未连接'}</span>
+              </div>
+              <Button size="sm" onClick={() => void rematch()} loading={matchBusy}>重新匹配</Button>
+            </div>
+            {matchRows !== null && (
+              <div className="cho-map-list">
+                <SuggestionList
+                  title="项目映射建议（本地 → 猪齿鱼）"
+                  items={matchRows}
+                  busy={matchBusy}
+                  onTargetChange={onMatchTarget}
+                  onDismiss={onMatchDismiss}
+                  onApply={(sel) => void applyMatches(sel)}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="set-row">
+            <div className="set-label">
+              <span>上次上报<HelpTip text="批量上报全部成功后自动推进到窗口截止日" /></span>
+              <span className="subtle">{c.lastSyncDay ? `${c.lastSyncDay}（下次默认从 ${addDays(c.lastSyncDay, 1)} 起）` : '从未上报'}</span>
+            </div>
+            <Button size="sm" variant="danger" disabled={!c.lastSyncDay} onClick={() => setResetOpen(true)}>重置窗口</Button>
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={resetOpen}
+        title="重置上报窗口？"
+        message="将清空「上次上报日」，下次批量上报需重新选择完整窗口；已上报过的条目仍会自动跳过，不会重复上报。"
+        confirmText="重置"
+        destructive
+        onCancel={() => setResetOpen(false)}
+        onConfirm={() => {
+          setResetOpen(false);
+          patchC({ lastSyncDay: '' });
+          flash('已重置上报窗口');
+        }}
+      />
     </section>
   );
 }

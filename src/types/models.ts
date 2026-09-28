@@ -151,11 +151,21 @@ export interface AppSettings {
   collect: CollectSettings;
   /** 猪齿鱼对接配置（null = 未启用；公司专属，不进开源） */
   choerodon: ChoerodonSettings | null;
+  /** 填报策略（P8）：上报向导与导出的时长口径；本地日志永远如实 */
+  reportPolicy: ReportPolicy;
 }
 
 export interface ChoerodonSettings {
   baseUrl: string;          // API 地址
-  username: string;         // 邮箱
-  encryptedPassword: string; // RSA 加密的 base64 密码
-  orgId: string;            // 组织 ID
+  orgId: string;            // 组织 ID（PAT self 接口可自动补全，可留空）
+  /** PAT 明文只存 OS keychain（Rust secret_put，service='daylog' account='choerodon-pat'）；
+   *  此处只留尾 4 位供显示，空串=未配置 */
+  patTail: string;
+  /** 本地项目 id → 猪齿鱼项目 id（F1 映射；空=未映射→向导/健康检查黄提醒） */
+  projectMap: Record<string, string>;
+  /** 上次全成功上报日（YYYY-MM-DD；窗口推进：此后→本次。'' = 从未上报） */
+  lastSyncDay: string;
 }
+
+/** 填报策略（上报/导出口径；本地日志永远如实）：fact=如实 / fill=按目标补齐（缺口按当日项目比例分摊至 dailyCap） */
+export type ReportPolicy = 'fact' | 'fill';

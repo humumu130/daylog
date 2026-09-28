@@ -1,0 +1,402 @@
+/* ============================================================
+   P8 猪齿鱼批量上报向导（ChoerodonBatchModal）。
+   铁律：只引用 --dl-* token；弹窗骨架复用 pages.css 的
+   modal-mask/modal-card、components.css 的 select-*、pages.css 的 sel。
+   ============================================================ */
+
+.cw-card {
+  width: 720px;
+  max-width: 94vw;
+}
+
+.cw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dl-space-3);
+}
+
+/* 步骤条：1 范围与映射 / 2 对账与策略 / 3 执行与结果 */
+.cw-steps {
+  list-style: none;
+  display: flex;
+  gap: var(--dl-space-5);
+  margin: 0;
+  padding: var(--dl-space-2) 0;
+  border-bottom: 1px solid var(--dl-border-2);
+}
+.cw-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+}
+.cw-step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--dl-radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--dl-text-xs);
+  border: 1px solid var(--dl-border-1);
+  font-variant-numeric: tabular-nums;
+}
+.cw-step.active {
+  color: var(--dl-accent);
+  font-weight: 600;
+}
+.cw-step.active .cw-step-num {
+  border-color: var(--dl-accent);
+  background: var(--dl-accent-subtle);
+  color: var(--dl-accent);
+}
+.cw-step.done {
+  color: var(--dl-success);
+}
+.cw-step.done .cw-step-num {
+  border-color: var(--dl-success);
+  color: var(--dl-success);
+}
+
+/* 前置门（连接中 / 未配置 / 失败） */
+.cw-gate-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-7) 0;
+}
+
+/* 三色横幅：warn=黄（降级/提醒）/ danger=红（错误）/ info=灰（说明） */
+.cw-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--dl-space-2);
+  padding: var(--dl-space-2) var(--dl-space-3);
+  border-radius: var(--dl-radius-md);
+  font-size: var(--dl-text-sm);
+  line-height: 1.5;
+}
+.cw-banner.warn {
+  background: var(--dl-warning-subtle);
+  color: var(--dl-warning);
+}
+.cw-banner.danger {
+  background: var(--dl-danger-subtle);
+  color: var(--dl-danger);
+}
+.cw-banner.info {
+  background: var(--dl-bg-muted);
+  color: var(--dl-fg-2);
+}
+
+/* 第 1 步：起止日期 */
+.cw-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--dl-space-2);
+  flex-wrap: wrap;
+}
+.cw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--dl-text-xs);
+}
+.cw-dates-sep {
+  align-self: center;
+  padding-bottom: 6px;
+}
+.cw-dates-tip {
+  margin-left: auto;
+  font-size: var(--dl-text-xs);
+  align-self: center;
+}
+
+/* 第 1 步：映射表（本地项目 → 远程项目 → 目标任务） */
+.cw-map {
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  overflow: hidden;
+}
+.cw-map-head {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(150px, 1.2fr) minmax(170px, 1.4fr);
+  gap: var(--dl-space-2);
+  padding: var(--dl-space-2) var(--dl-space-3);
+  font-size: var(--dl-text-xs);
+  background: var(--dl-bg-muted);
+}
+.cw-map-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(150px, 1.2fr) minmax(170px, 1.4fr);
+  gap: var(--dl-space-2);
+  align-items: center;
+  padding: var(--dl-space-2) var(--dl-space-3);
+  border-top: 1px solid var(--dl-border-2);
+}
+.cw-map-name {
+  font-size: var(--dl-text-base);
+  color: var(--dl-fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-map-skip {
+  font-size: var(--dl-text-base);
+}
+.cw-map-empty {
+  padding: var(--dl-space-4) var(--dl-space-3);
+  font-size: var(--dl-text-sm);
+}
+/* Select 触发器在网格里做省略号兜底 */
+.cw-map .select-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第 2 步：策略行 */
+.cw-policy {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  flex-wrap: wrap;
+  font-size: var(--dl-text-sm);
+}
+.cw-policy-tip {
+  font-size: var(--dl-text-xs);
+}
+
+/* 第 2 步：加班额度条 */
+.cw-ot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-2);
+}
+.cw-ot-line {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  flex-wrap: wrap;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-1);
+}
+.cw-otbar {
+  height: 6px;
+  border-radius: var(--dl-radius-full);
+  background: var(--dl-bg-muted);
+  overflow: hidden;
+}
+.cw-otbar-fill {
+  height: 100%;
+  border-radius: var(--dl-radius-full);
+  background: var(--dl-accent);
+  transition: width var(--dl-motion-base) var(--dl-ease);
+}
+.cw-otbar-fill.over {
+  background: var(--dl-warning);
+}
+
+/* 第 2 步：窗口汇总 + 逐日预览 */
+.cw-sum {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  flex-wrap: wrap;
+}
+.cw-days {
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  max-height: 320px;
+  overflow: auto;
+}
+.cw-day {
+  border-top: 1px solid var(--dl-border-2);
+}
+.cw-day:first-child {
+  border-top: none;
+}
+.cw-day.is-skip .cw-day-date {
+  color: var(--dl-fg-3);
+}
+.cw-day-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  padding: var(--dl-space-2) var(--dl-space-3);
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: var(--dl-text-base);
+  color: var(--dl-fg-1);
+  cursor: pointer;
+  text-align: left;
+}
+.cw-day-row:hover {
+  background: var(--dl-bg-hover);
+}
+.cw-day-chevron {
+  color: var(--dl-fg-3);
+  display: inline-flex;
+}
+.cw-day-date {
+  min-width: 86px;
+  font-variant-numeric: tabular-nums;
+}
+.cw-day-total {
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cw-day-ot {
+  color: var(--dl-fg-3);
+  font-size: var(--dl-text-xs);
+}
+.cw-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--dl-fg-3);
+  font-size: var(--dl-text-xs);
+}
+.cw-day-body {
+  padding: 0 var(--dl-space-3) var(--dl-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-1);
+}
+.cw-day-note {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  flex-wrap: wrap;
+  padding: 2px 0;
+}
+.cw-force {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--dl-fg-2);
+}
+.cw-rec {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  padding: 2px 0;
+  font-size: var(--dl-text-sm);
+}
+.cw-rec.is-gray {
+  opacity: 0.55;
+}
+.cw-rec-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dl-fg-1);
+}
+.cw-rec-issue {
+  flex: none;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--dl-text-xs);
+}
+.cw-num {
+  width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cw-rec-unit {
+  font-size: var(--dl-text-xs);
+  flex: none;
+}
+
+/* 第 3 步：执行列表 */
+.cw-run {
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  max-height: 320px;
+  overflow: auto;
+}
+.cw-run-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  padding: var(--dl-space-2) var(--dl-space-3);
+  border-top: 1px solid var(--dl-border-2);
+  font-size: var(--dl-text-sm);
+}
+.cw-run-row:first-child {
+  border-top: none;
+}
+.cw-run-status {
+  width: 16px;
+  display: inline-flex;
+  justify-content: center;
+  flex: none;
+  font-size: var(--dl-text-base);
+}
+.cw-run-row.is-done .cw-run-status {
+  color: var(--dl-success);
+}
+.cw-run-row.is-fail .cw-run-status {
+  color: var(--dl-danger);
+}
+.cw-run-row.is-pending {
+  opacity: 0.55;
+}
+.cw-run-day {
+  flex: none;
+  font-size: var(--dl-text-xs);
+}
+.cw-run-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dl-fg-1);
+}
+.cw-run-err {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dl-danger);
+  font-size: var(--dl-text-xs);
+}
+
+/* 底部按钮 */
+.cw-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--dl-space-2);
+  border-top: 1px solid var(--dl-border-2);
+  padding-top: var(--dl-space-3);
+}
+
+/* 窄窗口兜底：映射表三列改两行 */
+@media (max-width: 700px) {
+  .cw-map-head {
+    display: none;
+  }
+  .cw-map-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cw-map-name {
+    grid-column: 1 / -1;
+  }
+}

@@ -4,7 +4,6 @@ import { CaptureBar } from '../components/CaptureBar';
 import { TimelineEntry, recordToInput, truncateEntry, type EntryPatch } from '../components/TimelineEntry';
 import { ProgressRing } from '../components/ProgressRing';
 import { RecordEditor } from '../components/RecordEditor';
-import { ChoerodonSyncModal } from '../components/ChoerodonSyncModal';
 import { toast } from '../components/UndoToast';
 import { rebuildDayNow, undoDay } from '../../services/collector';
 import { notifyChanged } from '../../services/events';
@@ -26,7 +25,6 @@ export function TodayPage() {
     open: false,
     half: 'morning',
   });
-  const [choerodonOpen, setChoerodonOpen] = useState(false);
   // 日菜单（作用于当前查看日 day，非永远今天）
   const [dayMenuOpen, setDayMenuOpen] = useState(false);
   const [dayBusy, setDayBusy] = useState<'' | 'rebuild' | 'undo'>('');
@@ -154,6 +152,12 @@ export function TodayPage() {
     }
   }
 
+  /** 打开猪齿鱼批量上报向导（Modal 挂在 MainApp，经事件唤起，任意页面可用） */
+  function openBatchSync() {
+    setDayMenuOpen(false);
+    window.dispatchEvent(new CustomEvent('daylog:open-batch-sync'));
+  }
+
   return (
     <div className="today-page">
       <header className="today-header">
@@ -194,6 +198,13 @@ export function TodayPage() {
                   >
                     {dayBusy === 'undo' ? '撤销中…' : isToday ? '撤销今日自动条目' : '撤销当日自动条目'}
                   </button>
+                  <button
+                    type="button"
+                    className="select-option"
+                    onClick={openBatchSync}
+                  >
+                    批量上报…
+                  </button>
                 </div>
               )}
             </div>
@@ -203,9 +214,9 @@ export function TodayPage() {
           </div>
         </div>
         <div className="today-head-right">
-          {choerodonCfg && dayRecords.length > 0 && (
-            <button className="today-action" title="上报当日记录到猪齿鱼" onClick={() => setChoerodonOpen(true)}>
-              <CloudUpload size={14} /> 上报猪齿鱼
+          {choerodonCfg && (
+            <button className="today-action" title="批量上报工时到猪齿鱼（三步向导）" onClick={openBatchSync}>
+              <CloudUpload size={14} /> 批量上报
             </button>
           )}
           <div className="today-stat-card">
@@ -263,14 +274,6 @@ export function TodayPage() {
         projects={projects}
         tasks={tasks}
         onSubmit={onSubmit}
-      />
-
-      <ChoerodonSyncModal
-        open={choerodonOpen}
-        records={dayRecords}
-        projects={projects}
-        choerodonCfg={choerodonCfg}
-        onClose={() => setChoerodonOpen(false)}
       />
     </div>
   );

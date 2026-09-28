@@ -360,3 +360,50 @@ export async function saveReport(r: { month: string; templateId: string | null; 
   );
   return id;
 }
+
+// ==================== 猪齿鱼上报日志（choerodon_sync_log，P8 幂等防重） ====================
+
+export interface SyncLogRow {
+  logId: string;
+  recordId: string;
+  day: string;
+  minutes: number;
+  strategyRunId: string | null;
+  payload: string;
+  createdAt: number;
+}
+
+/** 单条上报留痕（log_id 主键=平台返回的工时日志 id 或本地生成，防重报） */
+export async function insertSyncLog(row: {
+  logId: string;
+  recordId: string;
+  day: string;
+  minutes: number;
+  strategyRunId?: string | null;
+  payload?: unknown;
+}): Promise<void> {
+  await (await db()).execute(
+    'INSERT OR REPLACE INTO choerodon_sync_log (log_id, record_id, day, minutes, strategy_run_id, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+    [row.logId, row.recordId, row.day, row.minutes, row.strategyRunId ?? null, JSON.stringify(row.payload ?? {}), Date.now()],
+  );
+}
+
+/** 窗口内已上报的天→分钟汇总（对账防重：已报日跳过/标记） */
+export async function listSyncLogDays(from: string, to: string): Promise<Map<string, number>> {
+  const rows = await (await db()).select<SyncLogRow[]>(
+    'SELECT * FROM choerodon_sync_log WHERE day >= $1 AND day <= $2',
+    [from, to],
+  );
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(r.day, (m.get(r.day) ?? 0) + r.minutes);
+  return m;
+}
+
+/** 某条记录是否已上报过（record_id 维度防重） */
+export async function isRecordSynced(recordId: string): Promise<boolean> {
+  const rows = await (await db()).select<{ n: number }[]>(
+    'SELECT COUNT(*) as n FROM choerodon_sync_log WHERE record_id = $1',
+    [recordId],
+  );
+  return (rows[0]?.n ?? 0) > 0;
+}
