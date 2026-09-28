@@ -101,6 +101,8 @@ interface TaskRow {
   note: string;
   created_at: number;
   updated_at: number;
+  source?: string;
+  external_key?: string | null;
 }
 function mapTask(r: TaskRow): Task {
   return {
@@ -113,6 +115,8 @@ function mapTask(r: TaskRow): Task {
     note: r.note,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    source: (r.source as Task['source']) ?? 'manual',
+    externalKey: r.external_key ?? null,
   };
 }
 
@@ -123,6 +127,9 @@ export interface TaskInput {
   startDate: string;
   endDate: string | null;
   note: string;
+  /** 来源与外部幂等键（AI 会话 todo 摄入用）；updateTask 不改这两列 */
+  source?: 'manual' | 'ai';
+  externalKey?: string | null;
 }
 
 export async function listTasks(status?: TaskStatus): Promise<Task[]> {
@@ -137,10 +144,16 @@ export async function createTask(input: TaskInput): Promise<string> {
   const id = crypto.randomUUID();
   const now = Date.now();
   await (await db()).execute(
-    'INSERT INTO tasks (id, title, project_id, status, start_date, end_date, note, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-    [id, input.title, input.projectId, input.status, input.startDate, input.endDate, input.note, now, now],
+    'INSERT INTO tasks (id, title, project_id, status, start_date, end_date, note, created_at, updated_at, source, external_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+    [id, input.title, input.projectId, input.status, input.startDate, input.endDate, input.note, now, now, input.source ?? 'manual', input.externalKey ?? null],
   );
   return id;
+}
+
+/** 按外部幂等键找任务（AI todo 摄入防重） */
+export async function findTaskByExternalKey(key: string): Promise<Task | null> {
+  const rows = await (await db()).select<TaskRow[]>('SELECT * FROM tasks WHERE external_key=$1 LIMIT 1', [key]);
+  return rows[0] ? mapTask(rows[0]) : null;
 }
 
 export async function updateTask(id: string, input: TaskInput): Promise<void> {
@@ -167,6 +180,7 @@ interface RecordRow {
   created_at: number;
   updated_at: number;
   meta: string;
+  run_id?: string | null;
 }
 function mapRecord(r: RecordRow): WorkRecord {
   return {
@@ -181,6 +195,7 @@ function mapRecord(r: RecordRow): WorkRecord {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     meta: safeParseObj(r.meta),
+    runId: r.run_id ?? undefined,
   };
 }
 
@@ -211,11 +226,11 @@ export async function listRecordsByRange(from: string, to: string): Promise<Work
   return rows.map(mapRecord);
 }
 
-export async function createRecord(input: RecordInput): Promise<string> {
+export async function createRecord(input: RecordInput, runId?: string): Promise<string> {
   const id = crypto.randomUUID();
   const now = Date.now();
   await (await db()).execute(
-    'INSERT INTO records (id, task_id, project_id, content, duration_min, day, half, source, created_at, updated_at, meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+    'INSERT INTO records (id, task_id, project_id, content, duration_min, day, half, source, created_at, updated_at, meta, run_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
     [
       id,
       input.taskId,
@@ -228,6 +243,7 @@ export async function createRecord(input: RecordInput): Promise<string> {
       now,
       now,
       JSON.stringify(input.meta ?? {}),
+      runId ?? null,
     ],
   );
   return id;

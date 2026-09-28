@@ -2,7 +2,7 @@
 
 export type Half = 'allday' | 'morning' | 'afternoon' | 'evening';
 export type TaskStatus = 'active' | 'paused' | 'done';
-export type RecordSource = 'manual' | 'git' | 'timer' | 'import';
+export type RecordSource = 'manual' | 'git' | 'timer' | 'import' | 'ai' | 'mixed';
 export type LlmProviderKind = 'openai-compat' | 'anthropic' | 'claude-code';
 export type Theme = 'light' | 'dark';
 
@@ -27,6 +27,10 @@ export interface Task {
   note: string;
   createdAt: number;
   updatedAt: number;
+  /** 来源：手动 / AI 会话 todo 摄入 */
+  source: 'manual' | 'ai';
+  /** 外部幂等键 sha1(provider+normalize(subject)+projectId)，AI 摄入防重 */
+  externalKey: string | null;
 }
 
 /** 原子日志条目：绑定具体某天的某个半天，可选关联 Task */
@@ -42,6 +46,8 @@ export interface WorkRecord {
   createdAt: number;
   updatedAt: number;
   meta: Record<string, unknown>;
+  /** 产生本条的整合运行 id（自动条目溯源/按 run 撤销）；手动条目无 */
+  runId?: string;
 }
 
 export interface ReportTemplate {
@@ -87,6 +93,35 @@ export interface GitRepo {
   author: string;
 }
 
+/** 采集引擎设置（P5）：无感日志体系的行为开关与阈值 */
+export interface CollectSettings {
+  /** 总开关：关=调度器不跑（手动补扫仍可用） */
+  enabled: boolean;
+  /** AI 会话扫描根目录（空=默认 ~/.claude/projects） */
+  scanRoots: string[];
+  /** 启动补扫回看天数（水位线兜底，默认 7，远小于源数据 30 天保留） */
+  lookbackDays: number;
+  /** 超过此天数的会话文件跳过（对齐源数据 30 天保留期） */
+  retentionDays: number;
+  /** 活跃区间切断阈值（分钟）：相邻事件间隔超过此值即切段，默认 15 */
+  gapMinutes: number;
+  /** 出网脱敏总线开关（默认开；关闭需自担风险，UI 有明确提示） */
+  scrubEnabled: boolean;
+  /** 噪音过滤开关（默认开） */
+  noiseFilter: boolean;
+  /** 噪音严格度：true=严格（更多进待确认）/ false=宽松（更多自动排除） */
+  noiseStrict: boolean;
+  /** 工时边界（加班判定）：上班/下班时间，HH:mm */
+  workStartTime: string;
+  workEndTime: string;
+  /** 周末活动计入加班（默认开） */
+  weekendOvertime: boolean;
+  /** 上班前早到计入加班（默认关） */
+  earlyStartOvertime: boolean;
+  /** 月度加班额度（小时）：上限提醒用（证据如实累计，不硬塞不硬砍） */
+  overtimeCapHours: number;
+}
+
 export interface AppSettings {
   hotkey: string;
   todoHotkey: string;
@@ -112,6 +147,8 @@ export interface AppSettings {
   autoBackupEnabled: boolean;
   autoBackupKeep: number;
   autoBackupDir: string;
+  /** 采集引擎（P5 无感日志体系） */
+  collect: CollectSettings;
   /** 猪齿鱼对接配置（null = 未启用；公司专属，不进开源） */
   choerodon: ChoerodonSettings | null;
 }

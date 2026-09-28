@@ -14,6 +14,8 @@ import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
 import { setAutostart } from '../services/autostart';
+import { startCollector } from '../services/collector';
+import { setScrubBus } from '../services/llm';
 import { onChanged } from '../services/events';
 import { registerHotkey, unregisterHotkey } from '../services/hotkey';
 import { toggleMain, toggleQuickCapture, toggleWidget } from '../services/window';
@@ -60,6 +62,11 @@ export function MainApp() {
     applyTheme(settings.theme);
   }, [settings.theme]);
 
+  // 脱敏总线开关（单一出网通道）：跟随采集设置
+  useEffect(() => {
+    setScrubBus(settings.collect.scrubEnabled);
+  }, [settings.collect.scrubEnabled]);
+
   // 初始化：加载设置、拉取基础数据、应用自启
   useEffect(() => {
     void (async () => {
@@ -71,6 +78,8 @@ export function MainApp() {
       void autoBackup(s).catch(() => undefined);
       // 下班提醒：每分钟检查（用 getter 实时读取最新设置）
       startReminder(() => useSettingsStore.getState().settings);
+      // 采集调度（P5）：启动补扫 + 30 分钟轮询（getter 实时读设置，collect.enabled 关=空转）
+      startCollector(() => useSettingsStore.getState().settings);
     })();
   }, [load, fetchProjects, fetchTasks]);
 

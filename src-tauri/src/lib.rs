@@ -3,6 +3,7 @@
 //  - 插件注册（store / clipboard / notification / global-shortcut / autostart）
 //  - 系统托盘（左键切换主窗口；右键菜单）
 // 热键注册、窗口控制、数据库 CRUD 均由前端 Tauri API 完成，便于配置与类型安全。
+mod ai_scan;
 mod commands;
 mod db;
 mod tray;
@@ -33,6 +34,10 @@ pub fn run() {
             commands::run_claude,
             commands::auto_backup_cmd,
             commands::choerodon_login_cmd,
+            ai_scan::ai_session_list,
+            ai_scan::ai_session_parse,
+            ai_scan::ai_session_cwds,
+            ai_scan::discover_repos,
         ])
         .setup(|app| {
             // 开机自启插件（仅桌面端），启用/禁用由前端控制

@@ -3,6 +3,15 @@ import { invoke } from '@tauri-apps/api/core';
 import type { LlmConfig, Project, WorkRecord } from '../types/models';
 import { formatHours } from '../utils/halfDay';
 import { groupBy } from '../utils/groupBy';
+import { scrubText } from './collector/scrub';
+
+// ---------- 脱敏总线（单一出网通道，P5·E6） ----------
+// 所有送云端 LLM 的载荷在本函数内统一脱敏（新增任何云端调用走 generateReport 即自动覆盖）。
+// 本地 claude CLI 通道不出网，不经过总线。默认开；由 MainApp 依 settings.collect.scrubEnabled 设置。
+let scrubBusEnabled = true;
+export function setScrubBus(enabled: boolean): void {
+  scrubBusEnabled = enabled;
+}
 
 /** 把给定记录聚合成文本摘要（供 LLM 写月报）。label 用于标题，通常是日期区间。 */
 export function buildMonthSummary(records: WorkRecord[], projects: Project[], label: string): string {
@@ -40,6 +49,9 @@ export async function generateReport(config: LlmConfig, system: string, user: st
     }
     const base = (config.baseUrl ?? '').replace(/\/$/, '');
     if (!base) throw new Error('未配置 API 地址，请在设置中填写 LLM 的 API 地址');
+    // 脱敏总线：云端载荷出网前必经（本地 claude 通道在上方分支，不经此处）
+    const sysOut = scrubBusEnabled ? scrubText(system).text : system;
+    const userOut = scrubBusEnabled ? scrubText(user).text : user;
     // 超时控制：90s（长报告需要时间）
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 90_000);
@@ -50,7 +62,7 @@ export async function generateReport(config: LlmConfig, system: string, user: st
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey ?? ''}` },
         body: JSON.stringify({
           model: config.model || 'glm-4-flash',
-          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          messages: [{ role: 'system', content: sysOut }, { role: 'user', content: userOut }],
           temperature: 0.6,
         }),
         signal: ctrl.signal,

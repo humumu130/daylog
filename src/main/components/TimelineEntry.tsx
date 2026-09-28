@@ -46,8 +46,8 @@ const EXTRA_SRC_LABEL: Partial<Record<RecordSource, string>> = {
 };
 
 function sourceBadge(source: RecordSource) {
-  if (source === 'manual' || source === 'git') return <SourceBadge src={source} />;
-  // timer/import（及 P5 后扩展值）在中性徽标里展示中文标签
+  // 四色徽标直通（P5 后 ai/mixed 已是真实来源值）；timer/import 走中性徽标
+  if (source === 'manual' || source === 'git' || source === 'ai' || source === 'mixed') return <SourceBadge src={source} />;
   return <Badge tone="neutral">{EXTRA_SRC_LABEL[source] ?? source}</Badge>;
 }
 

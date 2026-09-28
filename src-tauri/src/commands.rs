@@ -34,9 +34,10 @@ pub fn auto_backup_cmd(data: String, keep: Option<usize>, dir: Option<String>) -
     Ok(file_path.to_string_lossy().to_string())
 }
 
-/// 读取 git 提交日志（异步 + 25s 超时，避免大仓/慢盘/锁住时卡死 UI）
+/// 读取 git 提交日志（异步 + 40s 超时，避免大仓/慢盘/锁住时卡死 UI）；
+/// with_time=Some(true) 时输出 ISO8601 精确时间（%aI + --date=iso-strict），默认 None 保持仅日期
 #[tauri::command]
-pub async fn git_log(repo: String, since: String, author: Option<String>, until: Option<String>) -> Result<String, String> {
+pub async fn git_log(repo: String, since: String, author: Option<String>, until: Option<String>, with_time: Option<bool>) -> Result<String, String> {
     use std::process::Stdio;
     let mut cmd = tokio::process::Command::new("git");
     #[cfg(windows)] { cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW，避免闪控制台黑框
@@ -54,7 +55,13 @@ pub async fn git_log(repo: String, since: String, author: Option<String>, until:
             cmd.arg("-i").args(["--author", a]);
         }
     }
-    cmd.args(["--no-merges", "--pretty=format:%h|%s|%an|%ad", "--date=short"]);
+    if with_time == Some(true) {
+        // 含精确时间模式：ISO8601 严格格式（如 2026-09-28T21:05:00+08:00）
+        cmd.args(["--no-merges", "--pretty=format:%h|%s|%an|%aI", "--date=iso-strict"]);
+    } else {
+        // 默认模式：仅日期，保持与既有调用方字节级一致
+        cmd.args(["--no-merges", "--pretty=format:%h|%s|%an|%ad", "--date=short"]);
+    }
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     let out = tokio::time::timeout(std::time::Duration::from_secs(40), cmd.output())
         .await
