@@ -8,7 +8,7 @@ import { scanRepos, type GitCommit } from '../git';
 import { notifyChanged } from '../events';
 import { commitFingerprint, defaultScanRoots, eventFingerprint, makeResolver, scanSessions, sha256Hex, toEngineInputs } from './scan';
 import { ingestTodos } from './todoIngest';
-import { runConsolidate } from './engine';
+import { rebuildDay, runConsolidate } from './engine';
 import { commitWatermarks, filterIngested } from './state';
 import type { AiEvent, EngineInput, RunSummary } from './types';
 
@@ -16,6 +16,13 @@ const POLL_MS = 30 * 60 * 1000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let inFlight: Promise<CollectPassResult> | null = null;
+let lastPassAt = 0;
+let lastPass: CollectPassResult | null = null;
+
+/** 最近一轮采集（P6 状态头/采集中心展示）：at=完成时间戳，result=null 表示从未跑过 */
+export function getLastPass(): { at: number; result: CollectPassResult | null } {
+  return { at: lastPassAt, result: lastPass };
+}
 
 export interface CollectPassResult {
   files: number;
@@ -46,7 +53,10 @@ export function collectOnce(getSettings: () => AppSettings): Promise<CollectPass
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {
-      return await runPass(getSettings());
+      const res = await runPass(getSettings());
+      lastPass = res;
+      lastPassAt = Date.now();
+      return res;
     } finally {
       inFlight = null;
     }
@@ -170,6 +180,16 @@ async function commitsToInputs(commits: GitCommit[]): Promise<EngineInput[]> {
 export async function manualScanNow(): Promise<CollectPassResult> {
   const { useSettingsStore } = await import('../../stores/useSettingsStore');
   return collectOnce(() => useSettingsStore.getState().settings);
+}
+
+/** 用当前设置/项目/库状态重整合某日（今日页日菜单/采集中心噪音翻案后用） */
+export async function rebuildDayNow(day: string): Promise<import('./types').RunSummary> {
+  const { useSettingsStore } = await import('../../stores/useSettingsStore');
+  const { useProjectsStore } = await import('../../stores/useProjectsStore');
+  const s = useSettingsStore.getState().settings;
+  const projects = useProjectsStore.getState().projects;
+  const existing = await db.listRecordsByDay(day);
+  return rebuildDay(day, { settings: s.collect, llm: s.llm, projects, existingRecords: existing });
 }
 
 /** 供引擎 inputSig 等场景复用 */

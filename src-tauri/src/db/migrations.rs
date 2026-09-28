@@ -226,5 +226,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: "CREATE TABLE IF NOT EXISTS retrospectives (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL DEFAULT 'work', period TEXT NOT NULL, kind TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL)",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 38,
+            description: "noise_reviews_add_day",
+            sql: "ALTER TABLE noise_reviews ADD COLUMN day TEXT",
+            kind: MigrationKind::Up,
+        },
     ]
 }

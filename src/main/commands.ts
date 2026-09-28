@@ -1,8 +1,11 @@
-import { CalendarRange, ChartLine, Clock, Inbox, ListTodo, MoonStar, Settings, Zap } from 'lucide-react';
+import { CalendarRange, ChartLine, Clock, Inbox, ListTodo, MoonStar, RefreshCw, Settings, Sparkles, Undo2, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toggleQuickCapture, toggleWidget } from '../services/window';
+import { manualScanNow, rebuildDayNow, undoDay } from '../services/collector';
+import { notifyChanged } from '../services/events';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { addDays, todayYMD } from '../utils/date';
+import { toast } from './components/UndoToast';
 
 /** 命令面板上下文：由 CommandPalette 注入（navigate/requestGotoDay） */
 export interface CommandCtx {
@@ -61,6 +64,54 @@ export const COMMANDS: Command[] = [
     run: () => {
       const s = useSettingsStore.getState();
       void s.patch({ theme: s.settings.theme === 'dark' ? 'light' : 'dark' });
+    },
+  },
+  {
+    id: 'collect-scan-now',
+    title: '立即补扫',
+    sub: '扫描 AI 会话与 Git 提交并整合',
+    group: '快捷操作',
+    icon: RefreshCw,
+    keywords: ['scan', '补扫', '采集', 'collect'],
+    run: () => {
+      void manualScanNow()
+        .then((res) => {
+          void notifyChanged();
+          toast(`补扫完成：${res.events} 事件 · ${res.commits} 提交`);
+        })
+        .catch(() => toast('补扫失败，请稍后重试'));
+    },
+  },
+  {
+    id: 'collect-rebuild-today',
+    title: '重新整合今日',
+    sub: '用已摄入事件重建今日日志',
+    group: '快捷操作',
+    icon: Sparkles,
+    keywords: ['rebuild', '重整合', '整合', '今日'],
+    run: () => {
+      void rebuildDayNow(todayYMD())
+        .then(() => {
+          void notifyChanged();
+          toast('今日已重新整合');
+        })
+        .catch(() => toast('重新整合失败，请稍后重试'));
+    },
+  },
+  {
+    id: 'collect-undo-today',
+    title: '撤销今日自动条目',
+    sub: '删除今日采集生成的条目',
+    group: '快捷操作',
+    icon: Undo2,
+    keywords: ['undo', '撤销', '自动', '今日'],
+    run: () => {
+      void undoDay(todayYMD())
+        .then((n) => {
+          void notifyChanged();
+          if (n > 0) toast(`已撤销 ${n} 条自动条目`); // 删 0 条无感，不弹
+        })
+        .catch(() => toast('撤销失败，请稍后重试'));
     },
   },
   { id: 'page-today', title: '今日', group: '页面', icon: Clock, hotkey: '⌘1', keywords: ['today'], run: (ctx) => ctx.navigate('/today') },

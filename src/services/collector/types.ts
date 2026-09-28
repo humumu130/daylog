@@ -103,6 +103,7 @@ export interface NoiseReview {
   digest: string;
   reason: string;
   confidence: number;
+  day: string | null; // 发生日（P6：pending→重整合该日的关联键）
   createdAt: number;
   updatedAt: number;
 }

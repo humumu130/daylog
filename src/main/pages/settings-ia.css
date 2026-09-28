@@ -84,3 +84,130 @@
     flex-wrap: wrap;
   }
 }
+
+/* ============================================================
+   P6 F2：建议审核列表（SuggestionList，F1 映射/F2 cwd 归组共用）。
+   独立成面（不依赖 pages.css 的 card/set-h），可在任意页面直接挂。
+   铁律同上：只引用 --dl-* token。
+   ============================================================ */
+.sug-list {
+  background: var(--dl-bg-surface);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-lg);
+  box-shadow: var(--dl-shadow-sm);
+  padding: var(--dl-space-4) var(--dl-space-5);
+}
+.sug-title {
+  font-size: var(--dl-text-md);
+  font-weight: 700;
+  color: var(--dl-fg-1);
+  margin: 0;
+  line-height: 1.3;
+}
+.sug-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dl-space-3);
+  margin-bottom: var(--dl-space-2);
+}
+.sug-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+}
+.sug-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dl-space-2);
+  padding: var(--dl-space-6) 0;
+  color: var(--dl-fg-3);
+  font-size: var(--dl-text-sm);
+}
+.sug-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  transition: opacity var(--dl-motion-base) var(--dl-ease);
+}
+.sug-rows.is-busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.sug-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-3) 0;
+  border-top: 1px solid var(--dl-border-2);
+}
+.sug-row:first-child {
+  border-top: none;
+}
+.sug-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sug-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  min-width: 0;
+}
+.sug-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--dl-text-base);
+  color: var(--dl-fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sug-detail {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sug-conf {
+  flex-shrink: 0;
+  min-width: 34px;
+  text-align: right;
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.sug-target {
+  flex-shrink: 0;
+  width: 184px;
+}
+/* 窄窗口：目标下拉收窄换行兜底 */
+@media (max-width: 760px) {
+  .sug-row {
+    flex-wrap: wrap;
+  }
+  .sug-target {
+    width: 100%;
+    order: 5;
+  }
+}
+
+/* 设置页·采集分区：扫描根只读列表 */
+.set-roots {
+  list-style: none;
+  margin: 0;
+  padding: var(--dl-space-2) var(--dl-space-3);
+  background: var(--dl-bg-muted);
+  border: 1px solid var(--dl-border-2);
+  border-radius: var(--dl-radius-md);
+}
+.set-roots-item {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}

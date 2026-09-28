@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, CloudUpload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, CloudUpload, MoreHorizontal } from 'lucide-react';
 import { CaptureBar } from '../components/CaptureBar';
 import { TimelineEntry, recordToInput, truncateEntry, type EntryPatch } from '../components/TimelineEntry';
 import { ProgressRing } from '../components/ProgressRing';
 import { RecordEditor } from '../components/RecordEditor';
 import { ChoerodonSyncModal } from '../components/ChoerodonSyncModal';
 import { toast } from '../components/UndoToast';
+import { rebuildDayNow, undoDay } from '../../services/collector';
+import { notifyChanged } from '../../services/events';
 import type { Half, WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
 import { useProjectsStore } from '../../stores/useProjectsStore';
@@ -25,6 +27,10 @@ export function TodayPage() {
     half: 'morning',
   });
   const [choerodonOpen, setChoerodonOpen] = useState(false);
+  // 日菜单（作用于当前查看日 day，非永远今天）
+  const [dayMenuOpen, setDayMenuOpen] = useState(false);
+  const [dayBusy, setDayBusy] = useState<'' | 'rebuild' | 'undo'>('');
+  const dayMenuRef = useRef<HTMLDivElement>(null);
 
   const records = useRecordsStore((s) => s.records);
   const dailyCapHours = useSettingsStore((s) => s.settings.dailyCapHours);
@@ -53,6 +59,16 @@ export function TodayPage() {
       consumeGotoDay();
     }
   }, [gotoDay, consumeGotoDay, setRange]);
+
+  // 日菜单：点击外部收起（同 Select 交互）
+  useEffect(() => {
+    if (!dayMenuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (dayMenuRef.current && !dayMenuRef.current.contains(e.target as Node)) setDayMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [dayMenuOpen]);
 
   const dayRecords = useMemo(() => records.filter((r) => r.day === day), [records, day]);
   const totalMin = dayRecords.reduce((s, r) => s + (r.durationMin ?? 0), 0);
@@ -93,6 +109,37 @@ export function TodayPage() {
     });
   }
 
+  /** 日菜单：重整合当前查看日（已摄入事件重建；运行中禁用防双击） */
+  async function onRebuildDay() {
+    if (dayBusy) return;
+    setDayBusy('rebuild');
+    try {
+      await rebuildDayNow(day);
+      await notifyChanged();
+      setDayMenuOpen(false);
+    } catch {
+      toast('重新整合失败，请稍后重试');
+    } finally {
+      setDayBusy('');
+    }
+  }
+
+  /** 日菜单：撤销当前查看日自动条目（删 0 条无感；N>0 轻提示） */
+  async function onUndoAutoDay() {
+    if (dayBusy) return;
+    setDayBusy('undo');
+    try {
+      const n = await undoDay(day);
+      await notifyChanged();
+      if (n > 0) toast(`已撤销 ${n} 条自动条目`);
+      setDayMenuOpen(false);
+    } catch {
+      toast('撤销失败，请稍后重试');
+    } finally {
+      setDayBusy('');
+    }
+  }
+
   return (
     <div className="today-page">
       <header className="today-header">
@@ -105,6 +152,37 @@ export function TodayPage() {
             <button className="icon-btn" onClick={() => setDay((d) => addDays(d, 1))} disabled={day >= today} title="后一天">
               <ArrowRight size={16} />
             </button>
+            <div ref={dayMenuRef} style={{ position: 'relative' }}>
+              <button
+                className="icon-btn"
+                onClick={() => setDayMenuOpen((o) => !o)}
+                title={isToday ? '日菜单' : '当日菜单'}
+                aria-haspopup="menu"
+                aria-expanded={dayMenuOpen}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {dayMenuOpen && (
+                <div className="select-popover" style={{ minWidth: 176 }} role="menu">
+                  <button
+                    type="button"
+                    className="select-option"
+                    disabled={dayBusy !== ''}
+                    onClick={() => void onRebuildDay()}
+                  >
+                    {dayBusy === 'rebuild' ? '整合中…' : isToday ? '重新整合今日' : '重新整合当日'}
+                  </button>
+                  <button
+                    type="button"
+                    className="select-option"
+                    disabled={dayBusy !== ''}
+                    onClick={() => void onUndoAutoDay()}
+                  >
+                    {dayBusy === 'undo' ? '撤销中…' : isToday ? '撤销今日自动条目' : '撤销当日自动条目'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="muted today-sub">
             {weekdayCN(parseYMD(day))} · 专注记录，积少成多{!isToday && ' · 查看历史'}

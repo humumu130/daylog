@@ -58,3 +58,230 @@
 .collect-src-meta.is-placeholder {
   color: var(--dl-fg-3);
 }
+
+/* ============================================================
+   P6 采集中心追加：分区 / AI 源卡行 / 自动条目 / 噪音过滤。
+   铁律同上：只引用 --dl-* token；只增不删。
+   git-* 与既有类仍由 pages.css / components.css 提供。
+   ============================================================ */
+
+/* ---- 分区通用 ---- */
+.collect-section {
+  margin-bottom: var(--dl-space-6);
+}
+.collect-section-h {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  margin-bottom: var(--dl-space-3);
+}
+.collect-section-title {
+  font-size: var(--dl-text-md);
+  font-weight: 600;
+  color: var(--dl-fg-1);
+}
+.collect-section-sub {
+  font-size: var(--dl-text-sm);
+}
+.collect-section-h .seg {
+  margin-left: auto;
+}
+
+/* ---- AI 会话源卡：扫描根 + provider 健康度行 ---- */
+.collect-src-sub {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.collect-src-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-1);
+}
+.collect-src-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  font-size: var(--dl-text-sm);
+  min-width: 0;
+}
+.collect-src-row-name {
+  font-weight: 500;
+  color: var(--dl-fg-1);
+  flex-shrink: 0;
+}
+.collect-src-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-1);
+  color: var(--dl-fg-3);
+  min-width: 0;
+}
+
+/* ---- 列表卡片（自动条目按日一张卡 / 噪音一张卡） ---- */
+.collect-card {
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  background: var(--dl-bg-surface);
+  box-shadow: var(--dl-shadow-sm);
+  overflow: hidden;
+}
+.collect-card + .collect-card {
+  margin-top: var(--dl-space-3);
+}
+
+/* 日头：日期 + 合计 + 重整合/撤销 */
+.collect-day-head {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-2) var(--dl-space-4);
+  background: var(--dl-bg-muted);
+}
+.collect-day-date {
+  font-size: var(--dl-text-md);
+  font-weight: 600;
+  color: var(--dl-fg-1);
+}
+.collect-day-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--dl-space-2);
+}
+
+/* 自动条目行 */
+.collect-auto-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-2) var(--dl-space-4);
+  border-top: 1px solid var(--dl-border-2);
+  transition: background var(--dl-motion-fast) var(--dl-ease);
+}
+.collect-auto-row:hover {
+  background: var(--dl-bg-hover);
+}
+.collect-auto-content {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--dl-text-base);
+  color: var(--dl-fg-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.collect-auto-dur {
+  flex-shrink: 0;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+}
+.collect-auto-remove {
+  flex-shrink: 0;
+}
+
+/* 置信度小徽（自动条目整合置信度 / 噪音置信度） */
+.collect-conf {
+  flex-shrink: 0;
+  font-size: var(--dl-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--dl-fg-3);
+  background: var(--dl-bg-muted);
+  border-radius: var(--dl-radius-full);
+  padding: 1px 8px;
+}
+.collect-conf.is-low {
+  color: var(--dl-warning);
+  background: var(--dl-warning-subtle);
+}
+
+/* ---- 噪音过滤 ---- */
+.collect-note {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+  line-height: 1.6;
+}
+.collect-empty-line {
+  padding: var(--dl-space-4);
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+}
+.collect-noise-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-3) var(--dl-space-4);
+  border-top: 1px solid var(--dl-border-2);
+  transition: background var(--dl-motion-fast) var(--dl-ease);
+}
+.collect-noise-row:hover {
+  background: var(--dl-bg-hover);
+}
+.collect-noise-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.collect-noise-digest {
+  font-size: var(--dl-text-base);
+  color: var(--dl-fg-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.collect-noise-reason {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.collect-noise-actions {
+  display: flex;
+  gap: var(--dl-space-2);
+  flex-shrink: 0;
+}
+/* 已自动排除行：整体弱化 */
+.collect-noise-row.is-dropped .collect-noise-digest {
+  color: var(--dl-fg-2);
+}
+
+/* 折叠头（已自动排除） */
+.collect-fold {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  width: 100%;
+  padding: var(--dl-space-2) var(--dl-space-4);
+  border: none;
+  border-top: 1px solid var(--dl-border-2);
+  background: transparent;
+  color: var(--dl-fg-3);
+  font-size: var(--dl-text-sm);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dl-motion-fast) var(--dl-ease), background var(--dl-motion-fast) var(--dl-ease);
+}
+.collect-fold:hover {
+  color: var(--dl-fg-1);
+  background: var(--dl-bg-hover);
+}
+
+/* 聊天记录导入（E1 粘贴区） */
+.collect-paste-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.collect-paste-input {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  font-size: var(--dl-text-sm);
+  line-height: 1.5;
+}

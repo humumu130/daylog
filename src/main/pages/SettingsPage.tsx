@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Input, Switch } from '../../ui';
+import { Badge, Button, Input, Segmented, Switch } from '../../ui';
 import { Plus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -13,6 +13,7 @@ import * as db from '../../services/db';
 import { generateReport } from '../../services/llm';
 import { choerodonLogin, choerodonGetProjects, type ChoerodonConfig } from '../../services/choerodon';
 import { exportToFile, importFromFile } from '../../services/backup';
+import { defaultScanRoots } from '../../services/collector';
 import './settings-ia.css';
 
 /** 设置页二级导航分区键（P4 信息架构重排：左导航 + 右分区条件渲染） */
@@ -255,11 +256,123 @@ export function SettingsPage() {
             </section>
           )}
 
-          {/* 采集：Git 相关 */}
+          {/* 采集：总开关/噪音过滤/扫描参数/脱敏/扫描根（P6 F2）+ Git 作者 */}
           {pane === 'collect' && (
             <section className="card set-section">
               <h3 className="set-h">采集</h3>
               <div className="set-row" style={{ marginTop: 8 }}>
+                <div className="set-label">
+                  <span>采集开关<HelpTip text="总开关：关闭后后台调度不跑，手动补扫仍可用" /></span>
+                  <span className="subtle">自动记录 AI 会话与 Git 提交</span>
+                </div>
+                <Switch checked={settings.collect.enabled} onChange={(c) => void patch({ collect: { ...settings.collect, enabled: c } })} />
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>噪音过滤</span>
+                  <span className="subtle">过滤与工作无关的会话内容，可关</span>
+                </div>
+                <Switch checked={settings.collect.noiseFilter} onChange={(c) => void patch({ collect: { ...settings.collect, noiseFilter: c } })} />
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>过滤严格度</span>
+                  <span className="subtle">宽松=更多自动排除；严格=更多进待确认</span>
+                </div>
+                <Segmented
+                  aria-label="噪音过滤严格度"
+                  size="sm"
+                  options={[
+                    { value: 'loose', label: '宽松' },
+                    { value: 'strict', label: '严格' },
+                  ]}
+                  value={settings.collect.noiseStrict ? 'strict' : 'loose'}
+                  onChange={(v) => void patch({ collect: { ...settings.collect, noiseStrict: v === 'strict' } })}
+                />
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>启动补扫天数<HelpTip text="启动时回看的天数（水位线兜底）；源数据仅保留 30 天" /></span>
+                </div>
+                <div className="row gap-sm">
+                  <input
+                    type="number"
+                    className="sel"
+                    min={1}
+                    max={30}
+                    value={settings.collect.lookbackDays}
+                    onChange={(e) => void patch({ collect: { ...settings.collect, lookbackDays: Math.min(30, Math.max(1, Number(e.target.value) || 7)) } })}
+                    style={{ width: 64 }}
+                  />
+                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>天</span>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>保留期<HelpTip text="超过此天数的会话文件跳过不扫；对齐源数据 30 天保留期" /></span>
+                </div>
+                <div className="row gap-sm">
+                  <input
+                    type="number"
+                    className="sel"
+                    min={0}
+                    max={90}
+                    value={settings.collect.retentionDays}
+                    onChange={(e) => void patch({ collect: { ...settings.collect, retentionDays: Math.min(90, Math.max(0, Number(e.target.value) || 30)) } })}
+                    style={{ width: 64 }}
+                  />
+                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>天</span>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>切断间隔<HelpTip text="活跃区间判定：相邻事件间隔超过此值即切段计工时" /></span>
+                </div>
+                <div className="row gap-sm">
+                  <input
+                    type="number"
+                    className="sel"
+                    min={5}
+                    max={60}
+                    value={settings.collect.gapMinutes}
+                    onChange={(e) => void patch({ collect: { ...settings.collect, gapMinutes: Math.min(60, Math.max(5, Number(e.target.value) || 15)) } })}
+                    style={{ width: 64 }}
+                  />
+                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>分钟</span>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>出网脱敏<HelpTip text="送云端模型前替换密钥/连接串等敏感信息（本地 claude 通道不涉及）" /></span>
+                </div>
+                <Switch checked={settings.collect.scrubEnabled} onChange={(c) => void patch({ collect: { ...settings.collect, scrubEnabled: c } })} />
+              </div>
+              <div className="set-row">
+                <div className="set-label">
+                  <span>扫描根目录<HelpTip text="AI 会话扫描位置；恢复默认=~/.claude/projects 与 ~/.codex/sessions" /></span>
+                  <span className="subtle">
+                    {settings.collect.scanRoots.length > 0
+                      ? `${settings.collect.scanRoots.length} 个自定义根目录`
+                      : '默认：~/.claude/projects、~/.codex/sessions'}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    void defaultScanRoots().then((roots) => patch({ collect: { ...settings.collect, scanRoots: roots } }));
+                  }}
+                >
+                  恢复默认
+                </Button>
+              </div>
+              {settings.collect.scanRoots.length > 0 && (
+                <ul className="set-roots">
+                  {settings.collect.scanRoots.map((r) => (
+                    <li key={r} className="set-roots-item">{r}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="set-row">
                 <div className="set-label"><span>Git 作者（全局）<HelpTip text="扫描时只取这个作者的提交；留空=取全部；各仓库单独填的作者可覆盖" /></span></div>
                 <Input value={settings.gitAuthor} onChange={(e) => void patch({ gitAuthor: e.target.value })} placeholder="如 huanglin 或 huanglin@xx.com" className="grow" style={{ maxWidth: 280 }} />
               </div>

@@ -10,7 +10,7 @@ import * as db from '../db';
 import { boundsFor, buildIntervals, totalOvertimeMinutes } from './intervals';
 import { digestFingerprint, ingestedByDay, markIngested, markRunUndone, noiseDigestIndex, saveRun, upsertNoise } from './state';
 import { sha256Hex } from './scan';
-import type { CollectorCtx, ConsolidatedEntry, EngineInput, NoiseVerdict, RunSummary } from './types';
+import type { CollectorCtx, ConsolidatedEntry, EngineInput, NoiseStatus, NoiseVerdict, RunSummary } from './types';
 
 const WORKSPACE_ID = 'work'; // P8b 空间制激活前的默认空间
 const HALVES: Half[] = ['allday', 'morning', 'afternoon', 'evening'];
@@ -27,14 +27,22 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
   const mode = opts.mode ?? 'new';
   const summary: RunSummary = { created: 0, skippedExisting: 0, pending: 0, autoDropped: 0, degraded: false };
 
+  // 同类已判噪音内容：不再进 LLM（用户判定沉淀为规则，同类不再问）。
+  // 先于 rebuild 计算：重建输入需按判定状态排除（noise 桶）或恢复（用户翻案 kept）
+  const noiseIndex = ctx.settings.noiseFilter ? await noiseDigestIndex(WORKSPACE_ID) : new Map<string, NoiseStatus>();
   if (mode === 'rebuild') {
     await deleteAutoRecordsOfRun(day);
-    rawInputs = await inputsFromIngested(day);
+    rawInputs = await inputsFromIngested(day, noiseIndex);
   }
   if (rawInputs.length === 0) return summary;
 
-  // 同类已判噪音内容：不再进 LLM（用户判定沉淀为规则，同类不再问）
-  const noiseIndex = ctx.settings.noiseFilter ? await noiseDigestIndex(WORKSPACE_ID) : new Map<string, string>();
+  // 去重/语义提示基线：rebuild 模式下自动条目即将被删重建，不得参与「已有记录」
+  // （否则重整合把自己删掉的条目判重，导致内容丢失）；只留受保护（手动/收养）条目
+  const dedupBase =
+    mode === 'rebuild'
+      ? ctx.existingRecords.filter((r) => r.source === 'manual' || r.source === 'timer' || r.source === 'import' || userEdited(r))
+      : ctx.existingRecords;
+  const ctxForLlm: CollectorCtx = { ...ctx, existingRecords: dedupBase };
   const inputs = rawInputs.filter((x) => {
     if (!ctx.settings.noiseFilter) return true;
     return noiseIndex.get(digestFingerprint(WORKSPACE_ID, digestOf(x.text))) !== 'dropped';
@@ -58,7 +66,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
 
   const runId = crypto.randomUUID();
   const consumed = new Map<string, ConsumedRow>();
-  const noiseRows: { fingerprint: string; digest: string; reason: string; confidence: number; status: 'auto_dropped' | 'pending' }[] = [];
+  const noiseRows: { fingerprint: string; day: string; digest: string; reason: string; confidence: number; status: 'auto_dropped' | 'pending' }[] = [];
 
   // 按（项目）分组：null 一组（未映射，仍整合，P6 认领流兜底）
   const groups = new Map<string, EngineInput[]>();
@@ -78,7 +86,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
     let entries: ConsolidatedEntry[] = [];
     let noise: NoiseVerdict[] = [];
     try {
-      const res = await callLlm(day, project?.name ?? '未映射项目', groupInputs, ctx, groupActiveMin, Math.min(dayBudgetMin, groupActiveMin));
+      const res = await callLlm(day, project?.name ?? '未映射项目', groupInputs, ctxForLlm, groupActiveMin, groupActiveMin > 0 ? Math.min(dayBudgetMin, groupActiveMin) : dayBudgetMin);
       entries = res.items;
       noise = res.noise;
     } catch {
@@ -91,24 +99,28 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
     }
 
     // ---- 噪音三通道（高置信自动排除留痕 / 中置信待确认 / 低置信当正常内容）----
+    // 低置信（<0.5）噪音判定不采纳：不消费、不进 covered，走输入覆盖回退成独立条目（零误杀）
     const autoDropAt = ctx.settings.noiseStrict ? 0.95 : 0.9;
+    const noiseConsumedFps = new Set<string>();
     for (const n of noise) {
       if (!ctx.settings.noiseFilter || !n) continue;
+      const conf = Number(n.confidence) || 0;
+      if (conf < 0.5) continue;
       const fpKey = digestFingerprint(WORKSPACE_ID, digestOf(n.digest ?? ''));
       const prior = noiseIndex.get(fpKey);
-      const status: 'auto_dropped' | 'pending' =
-        prior === 'kept' ? 'pending' : (n.confidence ?? 0) >= autoDropAt ? 'auto_dropped' : (n.confidence ?? 0) >= 0.5 ? 'pending' : 'pending';
+      const status: 'auto_dropped' | 'pending' = prior === 'kept' ? 'pending' : conf >= autoDropAt ? 'auto_dropped' : 'pending';
       if (status === 'auto_dropped') summary.autoDropped++;
       else summary.pending++;
-      noiseRows.push({ fingerprint: fpKey, digest: (n.digest ?? '').slice(0, 60), reason: n.reason ?? '', confidence: n.confidence ?? 0, status });
+      noiseRows.push({ fingerprint: fpKey, day, digest: (n.digest ?? '').slice(0, 60), reason: n.reason ?? '', confidence: conf, status });
       for (const fp of n.sources ?? []) {
+        noiseConsumedFps.add(fp);
         const row = consume(fp, 'noise');
         if (row) consumed.set(row.fingerprint, row);
       }
     }
 
     // ---- 后校验 1：输入覆盖——未覆盖指纹回退独立条目（宁多一条不丢事件）----
-    const covered = new Set<string>([...entries.flatMap((e) => e.sources ?? []), ...noise.flatMap((n) => n.sources ?? [])]);
+    const covered = new Set<string>([...entries.flatMap((e) => e.sources ?? []), ...noiseConsumedFps]);
     for (const x of groupInputs) {
       if (!covered.has(x.fingerprint)) {
         entries.push({ title: clipTitle(x.text), hours: 0, sources: [x.fingerprint], confidence: 0.4 });
@@ -116,7 +128,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
     }
 
     // ---- 后校验 2：title 非空 + 与已有/本轮条目字面去重 ----
-    const seenTitle = new Set(ctx.existingRecords.filter((r) => r.day === day).map((r) => r.content.trim()));
+    const seenTitle = new Set(dedupBase.filter((r) => r.day === day).map((r) => r.content.trim()));
     entries = entries.filter((e) => {
       const t = (e.title ?? '').trim();
       if (!t) {
@@ -198,7 +210,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
   // ---- 收尾：摄入指纹（哨兵：撤销后不复活）+ 噪音留痕 + 运行记录 ----
   await markIngested([...consumed.values()]);
   for (const n of noiseRows) {
-    await upsertNoise({ fingerprint: n.fingerprint, workspaceId: WORKSPACE_ID, status: n.status, digest: n.digest, reason: n.reason, confidence: n.confidence });
+    await upsertNoise({ fingerprint: n.fingerprint, workspaceId: WORKSPACE_ID, status: n.status, digest: n.digest, reason: n.reason, confidence: n.confidence, day: n.day });
   }
   const inputSig = await sha256Hex(rawInputs.map((x) => x.fingerprint).sort().join(','));
   await saveRun({ id: runId, day, inputSig, status: summary.degraded ? 'failed' : 'success', summary: JSON.stringify(summary) });
@@ -209,6 +221,21 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
 export async function undoDay(day: string): Promise<number> {
   await markRunUndone(day);
   return deleteAutoRecordsOfRun(day);
+}
+
+/** 撤销第二级（单条）：移除该自动条目 + 沉淀 dropped 规则（同内容摘要不再进 LLM） */
+export async function removeAndIgnoreKind(record: { id: string; content: string; day: string }): Promise<void> {
+  const digest = digestOf(record.content).slice(0, 60);
+  await upsertNoise({
+    fingerprint: digestFingerprint(WORKSPACE_ID, digest),
+    workspaceId: WORKSPACE_ID,
+    status: 'dropped',
+    digest,
+    reason: '用户移除并忽略同类',
+    confidence: 1,
+    day: record.day,
+  });
+  await db.deleteRecord(record.id);
 }
 
 /** 重整合入口（今日页日菜单/采集中心）：用已摄入事件重建该日 */
@@ -284,14 +311,21 @@ async function deleteAutoRecordsOfRun(day: string): Promise<number> {
   return n;
 }
 
-async function inputsFromIngested(day: string): Promise<EngineInput[]> {
+/** 由已摄入快照重建某日输入：noise 桶默认排除（用户翻案 kept 后恢复参与重建）。
+ *  skipped/merged 桶不排除——重整合本就应从全部真实输入重新组合，结果幂等。 */
+async function inputsFromIngested(day: string, noiseIndex: Map<string, NoiseStatus>): Promise<EngineInput[]> {
   const rows = await ingestedByDay(day);
   return rows
-    .filter((r) => r.kind !== 'noise' && r.kind !== 'skipped' && r.kind !== 'merged')
     .map((r) => {
       try {
-        const p = JSON.parse(r.payload) as Partial<EngineInput>;
+        const p = JSON.parse(r.payload) as Partial<EngineInput> & { bucket?: string };
         if (!p || typeof p.text !== 'string') return null;
+        if (
+          p.bucket === 'noise' &&
+          noiseIndex.get(digestFingerprint(WORKSPACE_ID, digestOf(p.text))) !== 'kept'
+        ) {
+          return null;
+        }
         return {
           fingerprint: r.fingerprint,
           provider: (r.provider === 'codex' ? 'codex' : r.provider === 'git' ? 'git' : 'claude-code') as EngineInput['provider'],

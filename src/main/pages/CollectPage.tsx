@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderGit2, Inbox, MessagesSquare } from 'lucide-react';
-import { Badge, Button, Checkbox, Spinner } from '../../ui';
+import { ChevronDown, ChevronRight, FolderGit2, Inbox, MessagesSquare } from 'lucide-react';
+import { Button, Checkbox, EmptyState, SourceBadge, Spinner, Textarea } from '../../ui';
+import { useCollectStore } from '../../stores/useCollectStore';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -9,8 +10,13 @@ import { signatureOf, useGitStore } from '../../stores/useGitStore';
 import { scanRepos, type GitCommit } from '../../services/git';
 import { notifyChanged } from '../../services/events';
 import { formatHours } from '../../utils/halfDay';
+import { formatYMDChinese, todayYMD } from '../../utils/date';
+import type { RecordSource, WorkRecord } from '../../types/models';
 import * as db from '../../services/db';
 import { RangeAllocModal, type SelectedItem } from '../components/RangeAllocModal';
+import { SuggestionList } from '../components/SuggestionList';
+import { useCwdSuggestions } from '../hooks/useCwdSuggestions';
+import { previewConsolidate } from '../../services/collector';
 import './collect.css';
 
 type Period = 'today' | '7d' | '30d' | 'range';
@@ -18,10 +24,39 @@ type AnnotatedCommit = GitCommit & { imported: boolean };
 
 const RAW_DEFAULT_MIN = 30;
 
+/** AI 会话源卡的健康度行（按 provider） */
+const AI_PROVIDER_ROWS: { key: string; label: string }[] = [
+  { key: 'claude-code', label: 'Claude Code' },
+  { key: 'codex', label: 'Codex' },
+];
+
 /** 去掉 conventional-commit 前缀，如 fix(report): / feat: / chore(api)!:  */
 function cleanSubject(s: string): string {
   const t = s.replace(/^(fixup! |squash! )?(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?(!)?:\s*/i, '').trim();
   return t || s;
+}
+
+/** 相对时间：刚刚 / X 分钟前 / X 小时前 / 昨天 / MM-DD HH:mm */
+function relTime(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return '刚刚';
+  const min = Math.floor(diff / 60_000);
+  if (min < 60) return `${min} 分钟前`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} 小时前`;
+  const d = new Date(ts);
+  const now = new Date();
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  if (dayStart(now) - dayStart(d) === 86_400_000) return '昨天';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 自动条目的来源徽标（autoRecords 只含 ai/git/mixed，其余按 ai 兜底显示） */
+function autoBadgeSrc(s: RecordSource): 'ai' | 'git' | 'mixed' {
+  if (s === 'git') return 'git';
+  if (s === 'mixed') return 'mixed';
+  return 'ai';
 }
 
 export function CollectPage() {
@@ -32,8 +67,33 @@ export function CollectPage() {
   const llmConfig = useSettingsStore((s) => s.settings.llm);
   const dailyCap = useSettingsStore((s) => s.settings.dailyCapHours);
   const gitAuthor = useSettingsStore((s) => s.settings.gitAuthor);
+  const scanRoots = useSettingsStore((s) => s.settings.collect.scanRoots);
+  const noiseFilterOn = useSettingsStore((s) => s.settings.collect.noiseFilter);
+  const collectCfg = useSettingsStore((s) => s.settings.collect);
   const projects = useProjectsStore((s) => s.projects);
   const create = useRecordsStore((s) => s.create);
+
+  // ---- 采集中心 store（自动条目 / 噪音 / 补扫），页面只调 store ----
+  const scanning = useCollectStore((s) => s.scanning);
+  const busyKey = useCollectStore((s) => s.busyKey);
+  const lastPass = useCollectStore((s) => s.lastPass);
+  const pendingNoise = useCollectStore((s) => s.pendingNoise);
+  const autoDroppedNoise = useCollectStore((s) => s.autoDroppedNoise);
+  const autoRecords = useCollectStore((s) => s.autoRecords);
+  const collectError = useCollectStore((s) => s.error);
+  const refresh = useCollectStore((s) => s.refresh);
+  const scanNow = useCollectStore((s) => s.scanNow);
+  const decideNoise = useCollectStore((s) => s.decideNoise);
+  const restoreNoise = useCollectStore((s) => s.restoreNoise);
+  const undoDayAction = useCollectStore((s) => s.undoDayAction);
+  const removeIgnore = useCollectStore((s) => s.removeIgnore);
+  const rebuildAction = useCollectStore((s) => s.rebuildAction);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // ---- 手动导入（Git）：原 CollectPage 逻辑原样保留 ----
 
   // 智能整合状态在 store 里（跨页面存活，切走不丢、不重跑）
   const smartItems = useGitStore((s) => s.smartItems);
@@ -53,6 +113,15 @@ export function CollectPage() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState('');
   const [rangeOpen, setRangeOpen] = useState(false);
+  const [noiseFoldOpen, setNoiseFoldOpen] = useState(false);
+  // ---- 聊天记录导入（E1）：粘贴 → AI 解析预览 → 确认入库（L2 一次确认，不静默） ----
+  const [pasteText, setPasteText] = useState('');
+  const [pasteDay, setPasteDay] = useState(() => todayYMD());
+  const [pastePreview, setPastePreview] = useState<{ title: string; hours: number }[] | null>(null);
+  const [pasteChecked, setPasteChecked] = useState<Set<number>>(new Set());
+  const [pasteBusy, setPasteBusy] = useState(false);
+  const [pasteErr, setPasteErr] = useState('');
+  const [pasteDone, setPasteDone] = useState('');
   const knownHashesRef = useMemo(() => ({ current: new Set<string>() }), []);
 
   const showSmart = gitMode === 'smart';
@@ -233,57 +302,347 @@ export function CollectPage() {
     void loadKnownHashes();
   }
 
-  // 采集中心状态头（骨架）：数据源摘要一行卡。AI 会话源/待办采集 P5 接真数据，现在只占位。
+  // ---- 聊天记录导入（E1）处理：previewConsolidate 只预览不落库，确认才写 ----
+
+  async function parsePaste() {
+    const text = pasteText.trim();
+    if (!text || pasteBusy) return;
+    setPasteBusy(true);
+    setPasteErr('');
+    setPastePreview(null);
+    try {
+      const existing = await db.listRecordsByDay(pasteDay); // 当日已有记录给 LLM 做语义去重提示
+      const res = await previewConsolidate(pasteDay, text, {
+        settings: collectCfg, llm: llmConfig, projects, existingRecords: existing,
+      });
+      const rows = res.entries.map((e) => ({ title: e.title, hours: Math.max(0.5, Number(e.hours) || 0.5) }));
+      setPastePreview(rows);
+      setPasteChecked(new Set(rows.map((_, i) => i))); // 预览默认全勾，用户可去勾（L2 一次确认）
+      if (rows.length === 0) setPasteErr('没解析出可入库的内容，可补充上下文后重试');
+    } catch {
+      setPasteErr('解析失败：请检查 LLM 配置（设置·LLM）后重试');
+    } finally {
+      setPasteBusy(false);
+    }
+  }
+
+  function togglePasteRow(i: number) {
+    setPasteChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
+  async function importPaste() {
+    const items = (pastePreview ?? []).filter((_, i) => pasteChecked.has(i));
+    if (items.length === 0 || pasteBusy) return;
+    setPasteBusy(true);
+    try {
+      for (const it of items) {
+        await create({
+          content: it.title, durationMin: Math.max(30, Math.round(it.hours * 60)), day: pasteDay, half: 'allday',
+          // user_edited=确认收养：撤销自动/重整合不删用户确认过的导入条目
+          taskId: null, projectId: null, source: 'ai', meta: { confirmed: true, user_edited: true },
+        });
+      }
+      await notifyChanged();
+      setPasteDone(`已入库 ${items.length} 条`);
+      setPastePreview(null);
+      setPasteText('');
+      setPasteChecked(new Set());
+      setTimeout(() => setPasteDone(''), 2000);
+    } catch {
+      setPasteErr('入库失败，请重试');
+    } finally {
+      setPasteBusy(false);
+    }
+  }
+
+  // ---- 采集中心：状态头 ----
+  const pass = lastPass?.result ?? null;
+  const passAtText = lastPass && lastPass.at > 0 ? relTime(lastPass.at) : null;
+  const aiScanText = scanning
+    ? '扫描中…'
+    : pass
+      ? `${pass.files} 文件 · ${pass.events} 事件${passAtText ? ` · ${passAtText}` : ''}`
+      : '尚未扫描';
+
   const collectHead = (
     <div className="collect-head">
+      <div className="collect-src">
+        <div className="collect-src-title">
+          <MessagesSquare size={14} className="collect-src-icon" aria-hidden="true" />
+          <span>AI 会话源</span>
+          {scanning && <Spinner size="sm" label="扫描中" />}
+        </div>
+        <div className="collect-src-sub" title={scanRoots.length > 0 ? scanRoots.join('\n') : undefined}>
+          {scanRoots.length > 0 ? scanRoots.join(' · ') : '默认根 ~/.claude/projects + ~/.codex/sessions'}
+        </div>
+        <div className="collect-src-rows">
+          {AI_PROVIDER_ROWS.map((p) => (
+            <div key={p.key} className="collect-src-row">
+              <span className="collect-src-row-name">{p.label}</span>
+              <span className="collect-src-row-meta">{aiScanText}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="collect-src">
+        <div className="collect-src-title">
+          <Inbox size={14} className="collect-src-icon" aria-hidden="true" />
+          <span>待办采集</span>
+        </div>
+        <div className="collect-src-meta">
+          {pass
+            ? `新建 ${pass.todos.created} · 更新 ${pass.todos.updated} · 跳过 ${pass.todos.skipped}${passAtText ? ` · ${passAtText}` : ''}`
+            : '尚未采集'}
+        </div>
+      </div>
       <div className="collect-src">
         <div className="collect-src-title">
           <FolderGit2 size={14} className="collect-src-icon" aria-hidden="true" />
           <span>Git 仓库源</span>
         </div>
         <div className="collect-src-meta">
-          {repos.length} 个已配置仓库
+          {repos.length} 个已配置仓库{pass ? ` · 最近一轮 ${pass.commits} 提交` : ''}
           <Button size="sm" variant="ghost" onClick={() => navigate('/settings')}>去设置 →</Button>
         </div>
-      </div>
-      <div className="collect-src">
-        <div className="collect-src-title">
-          <MessagesSquare size={14} className="collect-src-icon" aria-hidden="true" />
-          <span>AI 会话源</span>
-          <Badge tone="neutral">预告</Badge>
-        </div>
-        <div className="collect-src-meta is-placeholder">即将上线</div>
-      </div>
-      <div className="collect-src">
-        <div className="collect-src-title">
-          <Inbox size={14} className="collect-src-icon" aria-hidden="true" />
-          <span>待办采集</span>
-          <Badge tone="neutral">预告</Badge>
-        </div>
-        <div className="collect-src-meta is-placeholder">即将上线</div>
       </div>
     </div>
   );
 
-  if (repos.length === 0) {
-    return (
-      <div>
-        <div className="page-head">
-          <div className="left">
-            <h2 className="section-title">采集中心</h2>
-            <span className="muted">Git 提交与 AI 会话的审核入库</span>
-          </div>
-        </div>
-        {collectHead}
-        <div className="empty" style={{ padding: 56 }}>
-          还没有数据源。Git 仓库在设置·项目与仓库添加后，这里自动扫描供审核导入。
-          <div style={{ marginTop: 12 }}>
-            <Button variant="primary" onClick={() => navigate('/settings')}>去设置</Button>
-          </div>
-        </div>
+  // ---- 采集中心：自动条目（按日分组，日倒序） ----
+  const autoByDay = useMemo(() => {
+    const groups = new Map<string, WorkRecord[]>();
+    for (const r of autoRecords) {
+      const arr = groups.get(r.day);
+      if (arr) arr.push(r);
+      else groups.set(r.day, [r]);
+    }
+    return [...groups.entries()]; // autoRecords 已按 day 倒序 → 分组自然倒序
+  }, [autoRecords]);
+
+  const autoSection = (
+    <section className="collect-section">
+      <div className="collect-section-h">
+        <span className="collect-section-title">自动条目</span>
+        <span className="muted collect-section-sub">AI 会话与 Git 提交自动整合生成 · 近 14 天</span>
       </div>
-    );
-  }
+      {autoByDay.length === 0 ? (
+        <EmptyState title="暂无自动条目" desc="启动补扫后会出现在这里" />
+      ) : (
+        autoByDay.map(([day, list]) => {
+          const totalMin = list.reduce((s, r) => s + (r.durationMin ?? 0), 0);
+          const dayBusy = busyKey === `day:${day}`;
+          return (
+            <div key={day} className="collect-card collect-day">
+              <div className="collect-day-head">
+                <span className="collect-day-date">{formatYMDChinese(day)}</span>
+                <span className="muted">{list.length} 条 · 合计 {formatHours(totalMin) || '0h'}</span>
+                <div className="collect-day-actions">
+                  <Button
+                    size="sm" variant="ghost" title="用当前设置重新整合该日"
+                    loading={dayBusy} disabled={busyKey !== null}
+                    onClick={() => void rebuildAction(day)}
+                  >
+                    重整合
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost" title="删除当日自动条目（保留手动条目）"
+                    disabled={busyKey !== null}
+                    onClick={() => void undoDayAction(day)}
+                  >
+                    撤销自动
+                  </Button>
+                </div>
+              </div>
+              {list.map((r) => {
+                const proj = r.projectId ? projects.find((p) => p.id === r.projectId) : undefined;
+                const conf = typeof r.meta?.confidence === 'number' ? (r.meta.confidence as number) : null;
+                const confText = conf !== null ? `整合置信度 ${conf.toFixed(2)}` : null;
+                return (
+                  <div key={r.id} className="collect-auto-row">
+                    <SourceBadge src={autoBadgeSrc(r.source)} />
+                    <span className="collect-auto-content" title={r.content}>{r.content}</span>
+                    {proj && <span className="tl-ptag" style={{ background: proj.color + '1a', color: proj.color }}>{proj.name}</span>}
+                    {confText && <span className={`collect-conf${conf !== null && conf < 0.5 ? ' is-low' : ''}`} title={confText}>{conf !== null ? conf.toFixed(2) : ''}</span>}
+                    <span className="collect-auto-dur">{formatHours(r.durationMin) || '未计时'}</span>
+                    <Button
+                      size="sm" variant="ghost" className="collect-auto-remove" title="同内容不再自动生成"
+                      loading={busyKey === `rec:${r.id}`} disabled={busyKey !== null}
+                      onClick={() => void removeIgnore({ id: r.id, content: r.content, day: r.day })}
+                    >
+                      移除并忽略同类
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })
+      )}
+    </section>
+  );
+
+  // ---- 采集中心：噪音过滤 ----
+  const noiseSection = (
+    <section className="collect-section">
+      <div className="collect-section-h">
+        <span className="collect-section-title">噪音过滤</span>
+        <span className="muted collect-section-sub">整合时被判为与工作无关的内容在此确认</span>
+      </div>
+      {!noiseFilterOn ? (
+        <div className="collect-note">噪音过滤已关闭（设置·采集可开）</div>
+      ) : (
+        <div className="collect-card">
+          {pendingNoise.length === 0 ? (
+            <div className="collect-empty-line">没有待确认内容</div>
+          ) : (
+            pendingNoise.map((n) => (
+              <div key={n.fingerprint} className="collect-noise-row">
+                <div className="collect-noise-main">
+                  <span className="collect-noise-digest" title={n.digest}>{n.digest}</span>
+                  <span className="collect-noise-reason" title={n.reason}>{n.reason}</span>
+                </div>
+                <span className="collect-conf" title={`噪音置信度 ${n.confidence.toFixed(2)}`}>{n.confidence.toFixed(2)}</span>
+                <div className="collect-noise-actions">
+                  <Button
+                    size="sm" variant="default" title="按正常工作内容参与该日整合"
+                    loading={busyKey === `noise:${n.fingerprint}`} disabled={busyKey !== null}
+                    onClick={() => void decideNoise(n.fingerprint, true)}
+                  >
+                    计入工作
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost" title="同类内容不再进入整合"
+                    disabled={busyKey !== null}
+                    onClick={() => void decideNoise(n.fingerprint, false)}
+                  >
+                    确是噪音
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+          <button type="button" className="collect-fold" aria-expanded={noiseFoldOpen} onClick={() => setNoiseFoldOpen((v) => !v)}>
+            {noiseFoldOpen ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+            已自动排除 ({autoDroppedNoise.length})
+          </button>
+          {noiseFoldOpen &&
+            autoDroppedNoise.map((n) => (
+              <div key={n.fingerprint} className="collect-noise-row is-dropped">
+                <div className="collect-noise-main">
+                  <span className="collect-noise-digest" title={n.digest}>{n.digest}</span>
+                  <span className="collect-noise-reason" title={n.reason}>{n.reason}</span>
+                </div>
+                <span className="collect-conf" title={`噪音置信度 ${n.confidence.toFixed(2)}`}>{n.confidence.toFixed(2)}</span>
+                <Button
+                  size="sm" variant="ghost" title="重新参与整合（该日重整合）"
+                  loading={busyKey === `noise:${n.fingerprint}`} disabled={busyKey !== null}
+                  onClick={() => void restoreNoise(n.fingerprint)}
+                >
+                  恢复
+                </Button>
+              </div>
+            ))}
+        </div>
+      )}
+    </section>
+  );
+
+  // ---- 采集中心：未映射会话认领（F2：规则初筛 + LLM 精配 → 归组/新建/忽略一键应用） ----
+  const cwdSug = useCwdSuggestions();
+
+  const unmappedSection = (
+    <section className="collect-section">
+      <div className="collect-section-h">
+        <span className="collect-section-title">未映射会话认领</span>
+        <span className="muted collect-section-sub">
+          发现工作目录尚未归属项目{cwdSug.degraded ? ' · 规则模式（未配置 LLM）' : ''}
+        </span>
+        <Button
+          size="sm" variant="ghost" style={{ marginLeft: 'auto' }}
+          disabled={cwdSug.loading} onClick={() => void cwdSug.reload()}
+        >
+          重新识别
+        </Button>
+      </div>
+      {cwdSug.error && <div className="warn-soft">{cwdSug.error}</div>}
+      <SuggestionList
+        title="AI 建议归组"
+        items={cwdSug.rows}
+        busy={cwdSug.loading}
+        onTargetChange={cwdSug.setTarget}
+        onDismiss={cwdSug.dismiss}
+        onApply={(sel) => void cwdSug.apply(sel)}
+      />
+    </section>
+  );
+
+  // ---- 采集中心：手动导入（聊天记录·E1）——粘贴 → AI 解析预览 → 确认入库 ----
+  const chatSection = (
+    <section className="collect-section">
+      <div className="collect-section-h">
+        <span className="collect-section-title">手动导入（聊天记录）</span>
+        <span className="muted collect-section-sub">粘贴微信/飞书等聊天文本，AI 解析为条目，确认后入库</span>
+      </div>
+      <div className="collect-card">
+        <div className="collect-paste-head">
+          <label className="muted" htmlFor="dl-paste-day">日期</label>
+          <input
+            id="dl-paste-day" type="date" className="sel" style={{ width: 138 }}
+            value={pasteDay} onChange={(e) => setPasteDay(e.target.value)}
+          />
+        </div>
+        <Textarea
+          className="collect-paste-input"
+          rows={6}
+          placeholder="粘贴聊天记录文本（发给同事/群里的内容直接贴，多段一起贴）…"
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+        />
+        <div className="row gap-sm" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
+          {pasteErr && <span className="warn-soft">{pasteErr}</span>}
+          {pasteDone && <span className="muted">{pasteDone}</span>}
+          <Button size="sm" variant="default" loading={pasteBusy} disabled={pasteBusy || !pasteText.trim()} onClick={() => void parsePaste()}>
+            AI 解析预览
+          </Button>
+        </div>
+        {pastePreview && pastePreview.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            {pastePreview.map((it, i) => (
+              <div key={i} className="collect-auto-row">
+                <Checkbox checked={pasteChecked.has(i)} onChange={() => togglePasteRow(i)} ariaLabel="选择该条目" />
+                <span className="collect-auto-content" title={it.title}>{it.title}</span>
+                <input
+                  type="number" className="sel" min={0.5} step={0.5} style={{ width: 64 }}
+                  title="估时（小时，可改）"
+                  value={it.hours}
+                  onChange={(e) =>
+                    setPastePreview((p) =>
+                      (p ?? []).map((x, j) => (j === i ? { ...x, hours: Math.max(0.5, Number(e.target.value) || 0.5) } : x)),
+                    )
+                  }
+                />
+              </div>
+            ))}
+            <div className="row gap-sm" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+              <Button size="sm" variant="primary" disabled={pasteBusy || pasteChecked.size === 0} onClick={() => void importPaste()}>
+                入库选中 ({pasteChecked.size})
+              </Button>
+            </div>
+          </div>
+        )}
+        {pastePreview && pastePreview.length === 0 && (
+          <div className="collect-empty-line">没解析出可入库的内容</div>
+        )}
+      </div>
+    </section>
+  );
+
+  // ---- 手动导入（Git）：ActionBar 与主体（原逻辑不变） ----
 
   const selectedForRange = buildSelected();
 
@@ -302,23 +661,8 @@ export function CollectPage() {
     </div>
   );
 
-  return (
-    <div>
-      <div className="page-head">
-        <div className="left">
-          <h2 className="section-title">采集中心</h2>
-          <span className="muted">Git 提交与 AI 会话的审核入库</span>
-        </div>
-        <div className="row gap-sm wrap">
-          <div className="seg">
-            <button className={`seg-btn${!showSmart ? ' active' : ''}`} onClick={() => toggleMode('raw')}>原始提交</button>
-            <button className={`seg-btn${showSmart ? ' active' : ''}`} onClick={() => toggleMode('smart')}>智能整合</button>
-          </div>
-        </div>
-      </div>
-
-      {collectHead}
-
+  const gitBody = (
+    <>
       <div className="row gap-sm wrap" style={{ marginBottom: 12 }}>
         <Button size="sm" style={{ minWidth: 80 }} variant={period === 'today' ? 'primary' : 'default'} onClick={() => setPeriod('today')}>今天</Button>
         <Button size="sm" style={{ minWidth: 80 }} variant={period === '7d' ? 'primary' : 'default'} onClick={() => setPeriod('7d')}>最近7天</Button>
@@ -488,6 +832,53 @@ export function CollectPage() {
         onClose={() => setRangeOpen(false)}
         onImport={(allocs) => void importAllocations(allocs)}
       />
+    </>
+  );
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="left">
+          <h2 className="section-title">采集中心</h2>
+          <span className="muted">Git 提交与 AI 会话的审核入库</span>
+        </div>
+        <div className="row gap-sm wrap">
+          <Button variant="primary" loading={scanning} onClick={() => void scanNow()}>立即补扫</Button>
+        </div>
+      </div>
+
+      {collectHead}
+
+      {collectError && <div className="warn-soft">{collectError}</div>}
+
+      {autoSection}
+
+      {unmappedSection}
+
+      {noiseSection}
+
+      {chatSection}
+
+      <section className="collect-section">
+        <div className="collect-section-h">
+          <span className="collect-section-title">手动导入（Git）</span>
+          <span className="muted collect-section-sub">回溯工具：扫描提交、审核后入库</span>
+          <div className="seg">
+            <button className={`seg-btn${!showSmart ? ' active' : ''}`} onClick={() => toggleMode('raw')}>原始提交</button>
+            <button className={`seg-btn${showSmart ? ' active' : ''}`} onClick={() => toggleMode('smart')}>智能整合</button>
+          </div>
+        </div>
+        {repos.length === 0 ? (
+          <div className="empty" style={{ padding: 40 }}>
+            还没有数据源。Git 仓库在设置·项目与仓库添加后，这里自动扫描供审核导入。
+            <div style={{ marginTop: 12 }}>
+              <Button variant="primary" onClick={() => navigate('/settings')}>去设置</Button>
+            </div>
+          </div>
+        ) : (
+          gitBody
+        )}
+      </section>
     </div>
   );
 }

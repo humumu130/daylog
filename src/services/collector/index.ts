@@ -2,9 +2,9 @@
 
 export type { AiEvent, AiEventKind, AiParseResult, AiSessionInfo, AiTodoInfo, CollectorCtx, CwdSummary, DiscoveredRepo, EngineInput, NoiseReview, NoiseStatus, RunSummary } from './types';
 export { scanSessions, toEngineInputs, makeResolver, eventFingerprint, commitFingerprint, sha256Hex, defaultScanRoots, type ProjectResolver, type ScanOutcome } from './scan';
-export { runConsolidate, rebuildDay, undoDay, previewConsolidate, type ConsolidateOptions } from './engine';
+export { runConsolidate, rebuildDay, undoDay, removeAndIgnoreKind, previewConsolidate, type ConsolidateOptions } from './engine';
 export { ingestTodos, type TodoIngestResult } from './todoIngest';
-export { startCollector, stopCollector, collectOnce, manualScanNow, type CollectPassResult } from './schedule';
+export { startCollector, stopCollector, collectOnce, manualScanNow, rebuildDayNow, getLastPass, type CollectPassResult } from './schedule';
 export { scrubText, scrubPayload, scrubTotals } from './scrub';
 export { buildIntervals, boundsFor, overtimeMinutes, totalOvertimeMinutes, activeTotalMinutes, type OvertimeBounds } from './intervals';
 export * as collectorState from './state';
