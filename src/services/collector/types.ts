@@ -5,7 +5,7 @@ import type { CollectSettings, LlmConfig, Project, WorkRecord } from '../../type
 
 /** ai_session_list 返回：一个会话 jsonl 文件的元信息 */
 export interface AiSessionInfo {
-  provider: string; // 'claude-code'
+  provider: string; // 'claude-code' | 'codex'（Rust detect_provider 按路径判定）
   file: string;
   sizeBytes: number;
   lastModified: number; // ms
@@ -59,7 +59,7 @@ export interface DiscoveredRepo {
 /** 引擎输入：一条待整合事件（AI 事件或 Git 提交的归一形态），带指纹 */
 export interface EngineInput {
   fingerprint: string; // sha256 hex，幂等主键
-  provider: 'claude-code' | 'git';
+  provider: 'claude-code' | 'codex' | 'git';
   day: string;
   projectId: string | null; // cwd/仓库最长前缀匹配；null=未映射
   kind: AiEventKind | 'commit';

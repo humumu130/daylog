@@ -9,10 +9,11 @@ import type { AiEvent, AiParseResult, AiSessionInfo, EngineInput } from './types
 import type { WatermarkEntry } from './state';
 import { filterIngested, getWatermark, setWatermark } from './state';
 
-/** Claude Code 默认扫描根（home/.claude/projects；Tauri path API 跨平台） */
+/** 默认扫描根（Claude Code ~/.claude/projects + Codex ~/.codex/sessions；根不存在由 Rust 静默跳过） */
 export async function defaultScanRoots(): Promise<string[]> {
   try {
-    return [`${await homeDir()}/.claude/projects`];
+    const home = await homeDir();
+    return [`${home}/.claude/projects`, `${home}/.codex/sessions`];
   } catch {
     return [];
   }
@@ -157,7 +158,7 @@ export async function toEngineInputs(
     .filter((x) => !ingested.has(x.fp))
     .map(({ e, fp }) => ({
       fingerprint: fp,
-      provider: 'claude-code' as const,
+      provider: (e.provider === 'codex' ? 'codex' : 'claude-code') as EngineInput['provider'],
       day: e.day,
       projectId: resolver.resolve(e.cwd)?.id ?? null,
       kind: e.kind,

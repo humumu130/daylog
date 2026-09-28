@@ -172,7 +172,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
       if (min <= 0) continue;
       const srcFps = e.sources ?? [];
       const hasGit = groupInputs.some((x) => x.provider === 'git' && srcFps.includes(x.fingerprint));
-      const hasAi = groupInputs.some((x) => x.provider === 'claude-code' && srcFps.includes(x.fingerprint));
+      const hasAi = groupInputs.some((x) => x.provider !== 'git' && srcFps.includes(x.fingerprint));
       const half = deriveHalf(groupInputs, srcFps) ?? (HALVES.includes(e.half as Half) ? (e.half as Half) : 'allday');
       await db.createRecord({
         taskId: null,
@@ -294,7 +294,7 @@ async function inputsFromIngested(day: string): Promise<EngineInput[]> {
         if (!p || typeof p.text !== 'string') return null;
         return {
           fingerprint: r.fingerprint,
-          provider: (r.provider === 'git' ? 'git' : 'claude-code') as EngineInput['provider'],
+          provider: (r.provider === 'codex' ? 'codex' : r.provider === 'git' ? 'git' : 'claude-code') as EngineInput['provider'],
           day: r.day,
           projectId: p.projectId ?? null,
           kind: p.kind ?? (r.kind as EngineInput['kind']),

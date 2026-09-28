@@ -1,5 +1,5 @@
-//! AI 会话采集（P5）：读取 Claude Code 本地 JSONL 会话文件并容错解析。
-//! Rust 侧只做「读文件 + 容错解析」，指纹/去重/LLM 整合由前端完成。
+//! AI 会话采集（P5）：读取 Claude Code（~/.claude/projects）与 Codex（~/.codex/sessions）
+//! 本地 JSONL 会话文件并容错解析。Rust 侧只做「读文件 + 容错解析」，指纹/去重/LLM 整合由前端完成。
 //! 容错总则：单文件/单行错误一律静默跳过（parse 级计数），绝不 panic；只有命令级错误才返回 Err。
 
 use serde::Serialize;
@@ -125,24 +125,34 @@ fn truncate_chars(s: &str, max_chars: usize) -> String {
 }
 
 /// 用行级公共字段组装 AiEvent
-fn build_event(ts: i64, v: &Value, kind: &str, text: String, todo: Option<AiTodo>) -> AiEvent {
+fn build_event(provider: &str, ts: i64, cwd: &str, git_branch: Option<String>, kind: &str, text: String, todo: Option<AiTodo>) -> AiEvent {
     AiEvent {
-        provider: PROVIDER.to_string(),
+        provider: provider.to_string(),
         kind: kind.to_string(),
         ts,
         day: local_day(ts),
-        cwd: v
-            .get("cwd")
-            .and_then(|x| x.as_str())
-            .unwrap_or("")
-            .to_string(),
-        git_branch: v
-            .get("gitBranch")
-            .and_then(|x| x.as_str())
-            .map(|s| s.to_string()),
+        cwd: cwd.to_string(),
+        git_branch,
         text,
         todo,
     }
+}
+
+/// 按路径识别 provider：Codex 官方 rollout 在 ~/.codex/sessions 下；其余按 Claude Code
+fn detect_provider(path: &str) -> &'static str {
+    if path.contains("/.codex/sessions") {
+        "codex"
+    } else {
+        PROVIDER
+    }
+}
+
+/// 从 Claude Code 行提取 cwd/gitBranch（build_event 的 claude 侧便捷封装）
+fn claude_ctx(v: &Value) -> (String, Option<String>) {
+    (
+        v.get("cwd").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        v.get("gitBranch").and_then(|x| x.as_str()).map(|s| s.to_string()),
+    )
 }
 
 /// 提取人类输入文本：origin.kind 存在时优先采信（非 human 一律跳过）；
@@ -249,8 +259,10 @@ fn todo_tool_events(v: &Value, ts: i64) -> Vec<AiEvent> {
             (subject, status, text)
         };
         out.push(build_event(
+            PROVIDER,
             ts,
-            v,
+            &claude_ctx(v).0,
+            claude_ctx(v).1,
             "todo_tool",
             text,
             Some(AiTodo {
@@ -261,6 +273,115 @@ fn todo_tool_events(v: &Value, ts: i64) -> Vec<AiEvent> {
         ));
     }
     out
+}
+
+/// Codex rollout 行解析（~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl，cli 0.92 实测布局）：
+/// 行结构 {timestamp, type, payload}；cwd 无逐行字段，由 session_meta/turn_context 的 payload.cwd 维护
+/// （turn_context 每轮出现，后写覆盖）。schema 跨版本漂移——全程容错，未知子类型静默忽略。
+/// event_msg(payload.type=user_message)=干净人类输入；response_item(payload.type=message) 中
+/// role=user 是 harness 注入噪音（环境上下文等）跳过，仅 assistant 取 content[] 的 output_text。
+/// 无 gitBranch。
+fn codex_handle_line(
+    v: &Value,
+    ts: i64,
+    cwd_state: &mut String,
+    events: &mut Vec<AiEvent>,
+    assistant_buf: &mut Vec<AiEvent>,
+) {
+    let payload = v.get("payload").cloned().unwrap_or(Value::Null);
+    match v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
+        "session_meta" | "turn_context" => {
+            if let Some(c) = payload.get("cwd").and_then(|x| x.as_str()) {
+                if !c.is_empty() {
+                    *cwd_state = c.to_string();
+                }
+            }
+        }
+        "event_msg" => {
+            if payload.get("type").and_then(|t| t.as_str()) != Some("user_message") {
+                return; // agent_message 等其它子类型忽略（assistant 走 response_item，防双计）
+            }
+            let text = payload
+                .get("message")
+                .and_then(|m| m.as_str())
+                .or_else(|| payload.get("text").and_then(|t| t.as_str()))
+                .unwrap_or("");
+            if !text.trim().is_empty() {
+                events.push(build_event(
+                    "codex",
+                    ts,
+                    cwd_state,
+                    None,
+                    "human_prompt",
+                    truncate_chars(text, 200),
+                    None,
+                ));
+            }
+        }
+        "response_item" => {
+            if payload.get("type").and_then(|t| t.as_str()) != Some("message") {
+                return; // function_call 等其它 item 不关心
+            }
+            if payload.get("role").and_then(|r| r.as_str()) != Some("assistant") {
+                return; // role=user/developer：harness 注入噪音，跳过
+            }
+            let Some(items) = payload.get("content").and_then(|c| c.as_array()) else {
+                return;
+            };
+            let parts: Vec<&str> = items
+                .iter()
+                .filter(|it| it.get("type").and_then(|t| t.as_str()) == Some("output_text"))
+                .filter_map(|it| it.get("text").and_then(|t| t.as_str()))
+                .collect();
+            if parts.is_empty() {
+                return;
+            }
+            assistant_buf.push(build_event(
+                "codex",
+                ts,
+                cwd_state,
+                None,
+                "assistant_tail",
+                truncate_chars(&parts.join("\n"), 500),
+                None,
+            ));
+        }
+        _ => {} // 未知类型忽略（不计数，防版本漂移误报坏行）
+    }
+}
+
+/// 水位线续读时的 Codex 头部 cwd 嗅探：读文件头 64KB，取「起始字节在 from_byte 之前」的
+/// 最后一个 session_meta/turn_context 的 payload.cwd（turn_context 每轮覆盖，最后一个即续读点
+/// 前的最新 cwd）。截断行解析失败自然跳过。
+fn sniff_codex_cwd(p: &Path, from_byte: u64) -> Option<String> {
+    let f = File::open(p).ok()?;
+    let mut buf = Vec::new();
+    if f.take(64 * 1024).read_to_end(&mut buf).is_err() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&buf);
+    let mut last: Option<String> = None;
+    let mut offset = 0usize;
+    for line in text.split('\n') {
+        let line_start = offset;
+        offset += line.len() + 1;
+        if line_start as u64 >= from_byte {
+            break; // 只看续读点之前的行
+        }
+        let Ok(v) = serde_json::from_str::<Value>(line.trim()) else {
+            continue;
+        };
+        let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        if ty != "session_meta" && ty != "turn_context" {
+            continue;
+        }
+        if let Some(c) = v.get("payload").and_then(|p| p.get("cwd")).and_then(|x| x.as_str()) {
+            if !c.is_empty() {
+                last = Some(c.to_string());
+            }
+        }
+    }
+    last
 }
 
 // ---------- 解析核心 ----------
@@ -306,6 +427,14 @@ fn parse_file(path: &str, from_byte: u64) -> Result<AiParseResult, String> {
     let mut parse_errors: u64 = 0;
     let mut events: Vec<AiEvent> = Vec::new();
     let mut assistant_buf: Vec<AiEvent> = Vec::new();
+    let provider = detect_provider(path);
+    // Codex 的 cwd 在 session_meta/turn_context 行内维护；水位线续读时头部已消费，
+    // 需先嗅探文件头恢复初始 cwd
+    let mut cwd_state = if provider == "codex" && from_byte > 0 {
+        sniff_codex_cwd(p, from_byte).unwrap_or_default()
+    } else {
+        String::new()
+    };
     for line in content.lines() {
         let line = line.trim();
         if line.is_empty() {
@@ -319,23 +448,31 @@ fn parse_file(path: &str, from_byte: u64) -> Result<AiParseResult, String> {
             parse_errors += 1;
             continue;
         }
-        if v.get("isSidechain").and_then(|b| b.as_bool()).unwrap_or(false) {
-            continue; // 侧链行整行跳过
-        }
         let Some(ts) = ts_ms(&v) else {
             continue; // 无有效时间戳（真实数据 user/assistant 行恒有），跳过不计数
         };
+        if provider == "codex" {
+            codex_handle_line(&v, ts, &mut cwd_state, &mut events, &mut assistant_buf);
+            continue;
+        }
+        if v.get("isSidechain").and_then(|b| b.as_bool()).unwrap_or(false) {
+            continue; // 侧链行整行跳过（claude-code 专属）
+        }
         match v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
             "user" => {
                 if let Some(t) = human_prompt_text(&v) {
-                    events.push(build_event(ts, &v, "human_prompt", truncate_chars(&t, 200), None));
+                    let (cwd, branch) = claude_ctx(&v);
+                    events.push(build_event(PROVIDER, ts, &cwd, branch, "human_prompt", truncate_chars(&t, 200), None));
                 }
             }
             "assistant" => {
                 if let Some(t) = assistant_text(&v) {
+                    let (cwd, branch) = claude_ctx(&v);
                     assistant_buf.push(build_event(
+                        PROVIDER,
                         ts,
-                        &v,
+                        &cwd,
+                        branch,
                         "assistant_tail",
                         truncate_chars(&t, 500),
                         None,
@@ -437,7 +574,7 @@ fn list_blocking(roots: &[String], lookback_days: u64) -> Vec<AiSessionInfo> {
                 continue;
             }
             out.push(AiSessionInfo {
-                provider: PROVIDER.to_string(),
+                provider: detect_provider(&f.to_string_lossy()).to_string(),
                 file: f.to_string_lossy().to_string(),
                 size_bytes: md.len(),
                 last_modified: mt,
@@ -461,8 +598,10 @@ pub async fn ai_session_list(roots: Vec<String>, lookback_days: u64) -> Result<V
 
 // ---------- cwd 聚合（ai_session_cwds） ----------
 
-/// 聚合指定目录（默认 ~/.claude/projects）下各会话文件前 64KB 内的 (cwd, gitBranch)：
-/// 按 (cwd, gitBranch) 去重，sessions=出现该组合的文件数，lastTs=最大 timestamp；mtime 超 lookback 跳过
+/// 聚合指定目录下各会话文件前 64KB 内的 (provider, cwd, gitBranch)：
+/// Claude Code 行内直接有 cwd/gitBranch；Codex 的 cwd 在 session_meta/turn_context 的 payload 内。
+/// 按 (provider, cwd, gitBranch) 去重，sessions=出现该组合的文件数，lastTs=提供该组合行的最大
+/// timestamp；mtime 超 lookback 跳过
 fn summarize_cwds(root: &Path, lookback_days: u64) -> Vec<CwdSummary> {
     let cutoff = if lookback_days == 0 {
         i64::MIN
@@ -473,14 +612,15 @@ fn summarize_cwds(root: &Path, lookback_days: u64) -> Vec<CwdSummary> {
     let mut visited = 0usize;
     scan_jsonl_files(root, &mut files, &mut visited);
 
-    // (cwd, gitBranch) → (sessions, last_ts)
-    let mut agg: HashMap<(String, Option<String>), (u64, Option<i64>)> = HashMap::new();
+    // (provider, cwd, gitBranch) → (sessions, last_ts)
+    let mut agg: HashMap<(String, String, Option<String>), (u64, Option<i64>)> = HashMap::new();
     for f in files {
         let Ok(md) = std::fs::metadata(&f) else { continue };
         let Some(mt) = mtime_ms(&md) else { continue };
         if mt < cutoff {
             continue;
         }
+        let provider = detect_provider(&f.to_string_lossy());
         // 只读前 64KB：cwd/gitBranch 通常在前几行
         let Ok(fh) = File::open(&f) else { continue };
         let mut buf = Vec::new();
@@ -488,22 +628,35 @@ fn summarize_cwds(root: &Path, lookback_days: u64) -> Vec<CwdSummary> {
             continue;
         }
         let text = String::from_utf8_lossy(&buf);
-        let mut seen: HashSet<(String, Option<String>)> = HashSet::new();
+        let mut seen: HashSet<(String, String, Option<String>)> = HashSet::new();
         for line in text.lines() {
             let Ok(v) = serde_json::from_str::<Value>(line.trim()) else {
                 continue; // 截断行/坏行静默跳过
             };
-            let Some(cwd) = v.get("cwd").and_then(|x| x.as_str()) else {
-                continue;
+            let key = if provider == "codex" {
+                // Codex：cwd 只在 session_meta/turn_context 行的 payload 内，无 gitBranch
+                let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                if ty != "session_meta" && ty != "turn_context" {
+                    continue;
+                }
+                let Some(cwd) = v.get("payload").and_then(|p| p.get("cwd")).and_then(|x| x.as_str()) else {
+                    continue;
+                };
+                (provider.to_string(), cwd.to_string(), None)
+            } else {
+                let Some(cwd) = v.get("cwd").and_then(|x| x.as_str()) else {
+                    continue;
+                };
+                (
+                    provider.to_string(),
+                    cwd.to_string(),
+                    v.get("gitBranch").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                )
             };
             let ts = ts_ms(&v);
-            let key = (
-                cwd.to_string(),
-                v.get("gitBranch").and_then(|x| x.as_str()).map(|s| s.to_string()),
-            );
             let e = agg.entry(key.clone()).or_insert((0, None));
             if seen.insert(key) {
-                e.0 += 1; // 每个文件对同一 (cwd, gitBranch) 只计 1 个 session
+                e.0 += 1; // 每个文件对同一 (provider, cwd, gitBranch) 只计 1 个 session
             }
             if let Some(t) = ts {
                 e.1 = Some(e.1.map_or(t, |old| old.max(t)));
@@ -512,8 +665,8 @@ fn summarize_cwds(root: &Path, lookback_days: u64) -> Vec<CwdSummary> {
     }
     let mut out: Vec<CwdSummary> = agg
         .into_iter()
-        .map(|((cwd, git_branch), (sessions, last_ts))| CwdSummary {
-            provider: PROVIDER.to_string(),
+        .map(|((provider, cwd, git_branch), (sessions, last_ts))| CwdSummary {
+            provider,
             cwd,
             git_branch,
             sessions,
@@ -524,12 +677,15 @@ fn summarize_cwds(root: &Path, lookback_days: u64) -> Vec<CwdSummary> {
     out
 }
 
-/// 聚合 Claude Code 会话的工作目录画像（扫 ~/.claude/projects，默认根写死），供前端项目识别
+/// 聚合 AI 会话的工作目录画像（Claude Code ~/.claude/projects + Codex ~/.codex/sessions 双根
+/// 写死；不存在的根静默空结果），供前端项目识别
 #[tauri::command]
 pub async fn ai_session_cwds(lookback_days: u64) -> Result<Vec<CwdSummary>, String> {
     tokio::task::spawn_blocking(move || -> Result<Vec<CwdSummary>, String> {
         let home = dirs_next::home_dir().ok_or("找不到用户主目录")?;
-        Ok(summarize_cwds(&home.join(".claude").join("projects"), lookback_days))
+        let mut out = summarize_cwds(&home.join(".claude").join("projects"), lookback_days);
+        out.extend(summarize_cwds(&home.join(".codex").join("sessions"), lookback_days));
+        Ok(out)
     })
     .await
     .map_err(|e| format!("聚合任务失败：{e}"))?
@@ -996,6 +1152,119 @@ mod tests {
         assert_eq!(b_row.git_branch, None);
         assert_eq!((b_row.sessions, b_row.last_ts), (1, Some(t3)));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Codex rollout 解析：session_meta/turn_context 维护 cwd（后写覆盖）、event_msg(user_message)
+    /// →human_prompt、assistant 取 content[] 的 output_text 拼接、role=user 注入噪音跳过、无 gitBranch；
+    /// from_byte 续读靠头部嗅探恢复最近 cwd
+    #[test]
+    fn test_codex_parse() {
+        let base = write_dir("codex");
+        let sess = base.join(".codex/sessions/2026/09/13");
+        std::fs::create_dir_all(&sess).unwrap();
+        let meta = json!({"timestamp":"2026-09-13T01:00:00.000Z","type":"session_meta",
+            "payload":{"cwd":"/Users/xdd/dev/projA"}});
+        let h1 = json!({"timestamp":"2026-09-13T01:01:00.000Z","type":"event_msg",
+            "payload":{"type":"user_message","message":"帮我重构解析器"}});
+        let turn = json!({"timestamp":"2026-09-13T01:10:00.000Z","type":"turn_context",
+            "payload":{"cwd":"/Users/xdd/dev/projB"}});
+        let h2 = json!({"timestamp":"2026-09-13T01:11:00.000Z","type":"event_msg",
+            "payload":{"type":"user_message","message":"继续，改扫描层"}});
+        let asst = json!({"timestamp":"2026-09-13T01:12:00.000Z","type":"response_item",
+            "payload":{"type":"message","role":"assistant","content":[
+                {"type":"output_text","text":"好的"},{"type":"output_text","text":"已完成扫描层重构"}]}});
+        let echo = json!({"timestamp":"2026-09-13T01:13:00.000Z","type":"response_item",
+            "payload":{"type":"message","role":"user","content":[
+                {"type":"input_text","text":"<environment_context>…"}]}});
+        let other = json!({"timestamp":"2026-09-13T01:14:00.000Z","type":"event_msg",
+            "payload":{"type":"agent_message","message":"assistant 消息（走 response_item，防双计）"}});
+        let p = sess.join("rollout-test.jsonl");
+        std::fs::write(&p, format!("{meta}\n{h1}\n{turn}\n{h2}\n{asst}\n{echo}\n{other}\n")).unwrap();
+        let path = p.to_string_lossy().to_string();
+
+        let r = parse_file(&path, 0).unwrap();
+        assert_eq!(r.parse_errors, 0);
+        // human×2 + assistant_tail×1；role=user 回显与 agent_message 不产事件
+        assert_eq!(r.events.len(), 3);
+        assert!(r.events.iter().all(|e| e.provider == "codex" && e.git_branch.is_none()));
+
+        let humans: Vec<&AiEvent> = r.events.iter().filter(|e| e.kind == "human_prompt").collect();
+        assert_eq!(humans.len(), 2);
+        assert_eq!(
+            (humans[0].cwd.as_str(), humans[0].text.as_str()),
+            ("/Users/xdd/dev/projA", "帮我重构解析器")
+        );
+        assert_eq!(
+            (humans[1].cwd.as_str(), humans[1].text.as_str()),
+            ("/Users/xdd/dev/projB", "继续，改扫描层")
+        );
+        let tail = r.events.iter().find(|e| e.kind == "assistant_tail").unwrap();
+        assert_eq!(tail.text, "好的\n已完成扫描层重构"); // 多 output_text 块拼接
+        assert_eq!(tail.cwd, "/Users/xdd/dev/projB"); // turn_context 后写覆盖 session_meta
+
+        // from_byte 续读（跳过 meta/turn 头部）：嗅探恢复最近 cwd=projB，h2/asst 正常解析
+        let off = (meta.to_string().len() + h1.to_string().len() + turn.to_string().len() + 3) as u64;
+        let r2 = parse_file(&path, off).unwrap();
+        assert_eq!(r2.events.len(), 2);
+        assert!(r2.events.iter().all(|e| e.cwd == "/Users/xdd/dev/projB"));
+        assert!(r2.events.iter().any(|e| e.kind == "human_prompt" && e.text == "继续，改扫描层"));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Codex cwd 聚合：payload.cwd 计权 + provider=codex + gitBranch=null；消息行无 cwd 不参与
+    #[test]
+    fn test_cwds_codex() {
+        let base = write_dir("cwdscodex");
+        let root = base.join(".codex/sessions/2026/09/13");
+        std::fs::create_dir_all(&root).unwrap();
+        let meta = json!({"timestamp":"2026-09-13T01:00:00.000Z","type":"session_meta",
+            "payload":{"cwd":"/p/codex"}});
+        let turn = json!({"timestamp":"2026-09-13T02:00:00.000Z","type":"turn_context",
+            "payload":{"cwd":"/p/other"}});
+        let msg = json!({"timestamp":"2026-09-13T03:00:00.000Z","type":"event_msg",
+            "payload":{"type":"user_message","message":"hi"}});
+        std::fs::write(root.join("rollout-a.jsonl"), format!("{meta}\n{turn}\n{msg}\n")).unwrap();
+
+        let out = summarize_cwds(&root, 0);
+        assert_eq!(out.len(), 2); // 消息行不产 cwd；turn_context 的 /p/other 独立成行
+        let row = out.iter().find(|c| c.cwd == "/p/codex").unwrap();
+        assert_eq!(
+            (row.provider.as_str(), row.git_branch.as_deref(), row.sessions),
+            ("codex", None, 1)
+        );
+        assert_eq!(row.last_ts, Some(rfc3339_ms("2026-09-13T01:00:00.000Z")));
+        assert!(out.iter().any(|c| c.cwd == "/p/other"));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// ai_session_list 对 codex 文件打 provider 标（root 直指 sessions 日期目录，.codex 在根之上不参与遍历）
+    #[test]
+    fn test_list_provider_codex() {
+        let base = write_dir("listcodex");
+        let root = base.join(".codex/sessions/2026/09/13");
+        std::fs::create_dir_all(&root).unwrap();
+        let line = json!({"timestamp":"2026-09-13T01:00:00.000Z","type":"session_meta",
+            "payload":{"cwd":"/p"}});
+        std::fs::write(root.join("rollout-x.jsonl"), format!("{line}\n")).unwrap();
+        let list = list_blocking(&[root.to_string_lossy().to_string()], 0);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].provider, "codex");
+        assert_eq!(list[0].last_event_ts, Some(rfc3339_ms("2026-09-13T01:00:00.000Z")));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// 真实 Codex 冒烟：~/.codex/sessions 有会话则全量解析不应 Err 且 provider 全为 codex；无则跳过
+    #[test]
+    #[ignore = "依赖真实 ~/.codex 数据，手动 cargo test -- --ignored 运行"]
+    fn codex_real_scan() {
+        let home = dirs_next::home_dir().expect("取 home 目录失败");
+        let root = home.join(".codex").join("sessions");
+        let sessions = list_blocking(&[root.to_string_lossy().to_string()], 30);
+        for s in sessions.iter().take(3) {
+            let r = parse_file(&s.file, 0).expect("真实 codex 会话全量解析不应 Err");
+            assert_eq!(r.size_bytes, s.size_bytes);
+            assert!(r.events.iter().all(|e| e.provider == "codex"));
+        }
     }
 
     /// 仓库发现：.git 目录/文件均识别、remote 解析（origin 优先）、README 标题、package.json、深度与跳过规则
