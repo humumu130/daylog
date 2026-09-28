@@ -1,0 +1,125 @@
+/* ============================================================
+   日迹 Daylog · 设计 Token（零规则纯变量，P1 地基）
+   铁律：组件 CSS 只准引用 --dl-*；项目色数据走内联例外。
+   明暗两套；经 v2 原型视觉复审验证（R1 亮暗双拍对比度通过）。
+   ============================================================ */
+:root {
+  /* 背景层 */
+  --dl-bg-base: #f5f3ff;
+  --dl-bg-surface: #ffffff;
+  --dl-bg-raised: #ffffff;
+  --dl-bg-muted: #ebeff9;
+  --dl-bg-hover: rgba(99, 102, 241, 0.06);
+  --dl-bg-active: rgba(99, 102, 241, 0.12);
+
+  /* 前景 */
+  --dl-fg-1: #1a1d27;
+  --dl-fg-2: #5a5f73;
+  --dl-fg-3: #8b90a5;
+  --dl-fg-on-accent: #ffffff;
+
+  /* 主色（indigo） */
+  --dl-accent: #6366f1;
+  --dl-accent-hover: #5558e8;
+  --dl-accent-subtle: rgba(99, 102, 241, 0.12);
+
+  /* 语义色 */
+  --dl-danger: #dc2626;
+  --dl-danger-subtle: rgba(220, 38, 38, 0.1);
+  --dl-success: #059669;
+  --dl-success-subtle: rgba(5, 150, 105, 0.1);
+  --dl-warning: #b45309;
+  --dl-warning-subtle: rgba(180, 83, 9, 0.1);
+
+  /* 来源徽标四色（manual 手动 / git / ai / mixed 混合） */
+  --dl-src-manual: #64748b;
+  --dl-src-git: #c2410c;
+  --dl-src-ai: #7c3aed;
+  --dl-src-mixed: #0e7490;
+
+  /* 边框 */
+  --dl-border-1: #e2e4ef;
+  --dl-border-2: #eef0f8;
+  --dl-border-focus: #6366f1;
+
+  /* 间距（4px 刻度） */
+  --dl-space-1: 4px;
+  --dl-space-2: 8px;
+  --dl-space-3: 12px;
+  --dl-space-4: 16px;
+  --dl-space-5: 20px;
+  --dl-space-6: 24px;
+  --dl-space-7: 32px;
+  --dl-space-8: 40px;
+
+  /* 字号 */
+  --dl-text-xs: 11px;
+  --dl-text-sm: 12px;
+  --dl-text-base: 13px;
+  --dl-text-md: 14px;
+  --dl-text-lg: 16px;
+  --dl-text-xl: 20px;
+  --dl-text-2xl: 24px;
+
+  /* 圆角 */
+  --dl-radius-sm: 6px;
+  --dl-radius-md: 8px;
+  --dl-radius-lg: 12px;
+  --dl-radius-full: 999px;
+
+  /* 阴影 */
+  --dl-shadow-sm: 0 1px 2px rgba(23, 23, 38, 0.05);
+  --dl-shadow-md: 0 4px 16px rgba(23, 23, 38, 0.1);
+  --dl-shadow-lg: 0 12px 40px rgba(23, 23, 38, 0.16);
+
+  /* 动效 */
+  --dl-motion-fast: 120ms;
+  --dl-motion-base: 200ms;
+  --dl-motion-slow: 250ms;
+  --dl-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --dl-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 焦点环 */
+  --dl-focus-ring: 0 0 0 2px var(--dl-bg-surface), 0 0 0 4px var(--dl-accent);
+
+  /* 字体（离线优先：Outfit 本地子集可选，缺字体无缝落系统栈） */
+  --dl-font-sans: 'Outfit Local', -apple-system, 'SF Pro Text', system-ui,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --dl-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+[data-theme='dark'] {
+  --dl-bg-base: #101017;
+  --dl-bg-surface: #171722;
+  --dl-bg-raised: #1d1d2a;
+  --dl-bg-muted: #1e1e2c;
+  --dl-bg-hover: rgba(129, 140, 248, 0.08);
+  --dl-bg-active: rgba(129, 140, 248, 0.14);
+
+  --dl-fg-1: #edeef4;
+  --dl-fg-2: #a3a7b8;
+  --dl-fg-3: #6c7086;
+
+  --dl-accent: #818cf8;
+  --dl-accent-hover: #93a0fa;
+  --dl-accent-subtle: rgba(129, 140, 248, 0.16);
+
+  --dl-danger: #f87171;
+  --dl-danger-subtle: rgba(248, 113, 113, 0.12);
+  --dl-success: #34d399;
+  --dl-success-subtle: rgba(52, 211, 153, 0.12);
+  --dl-warning: #fbbf24;
+  --dl-warning-subtle: rgba(251, 191, 36, 0.12);
+
+  --dl-src-manual: #94a3b8;
+  --dl-src-git: #fb923c;
+  --dl-src-ai: #a78bfa;
+  --dl-src-mixed: #22d3ee;
+
+  --dl-border-1: #262636;
+  --dl-border-2: #1f1f2e;
+
+  --dl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --dl-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --dl-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+}

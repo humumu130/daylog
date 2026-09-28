@@ -28,3 +28,4 @@ serde_json = "1"
 tokio = { version = "1", features = ["process", "io-util", "time"] }
 dirs-next = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tauri-plugin-window-state = "2.5.0"

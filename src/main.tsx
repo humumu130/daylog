@@ -4,6 +4,7 @@ import { QuickCaptureApp } from './capture/QuickCaptureApp';
 import { MainApp } from './main/MainApp';
 import { WidgetApp } from './widget/WidgetApp';
 import { ErrorBoundary } from './ErrorBoundary';
+import './styles/tokens.css'; // --dl- 设计 token（P1：纯变量零视觉影响，P2 换壳后全面接管）
 import './styles/global.css';
 
 const label = getCurrentWebviewWindow().label;

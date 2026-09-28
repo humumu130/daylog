@@ -1,0 +1,91 @@
+/* ============================================================
+   日迹 Daylog · 基础样式（reset / 全局 / 滚动条 / 焦点可达）
+   只引用 --dl-* token；主题单一通道 = html[data-theme]。
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--dl-font-sans);
+  font-size: var(--dl-text-base);
+  line-height: 1.5;
+  color: var(--dl-fg-1);
+  background: var(--dl-bg-base);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color var(--dl-motion-slow) var(--dl-ease),
+    color var(--dl-motion-slow) var(--dl-ease);
+  overflow: hidden; /* 桌面应用窗口：滚动交给内部容器 */
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--dl-accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--dl-accent-hover);
+}
+
+::selection {
+  background: var(--dl-accent-subtle);
+  color: var(--dl-fg-1);
+}
+
+/* 焦点可达：键盘走 focus-visible 统一环，鼠标点击不显环 */
+:focus-visible {
+  outline: 2px solid var(--dl-accent);
+  outline-offset: 2px;
+}
+
+/* 数字等宽（工时/时长统计位） */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 滚动条（桌面质感：细、随主题） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--dl-bg-muted);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  border: 1px solid transparent;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

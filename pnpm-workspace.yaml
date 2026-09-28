@@ -1,0 +1,3 @@
+# pnpm 构建脚本审批：esbuild 二进制走平台 optionalDependencies，无需 postinstall
+allowBuilds:
+  esbuild: false

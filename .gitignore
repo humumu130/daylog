@@ -32,3 +32,6 @@ dist-ssr
 *.sqlite
 *.sqlite3
 settings.local.json
+
+# Local cargo config (crates.io mirror workaround, per-machine)
+.cargo/
