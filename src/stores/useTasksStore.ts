@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import * as db from '../services/db';
 import type { Task, TaskStatus } from '../types/models';
+import { useWorkspaceStore } from './useWorkspaceStore';
+
+/** 当前空间 id（查询过滤与缺省写入共用；useWorkspaceStore 无反向依赖，无环） */
+const curWsId = (): string => useWorkspaceStore.getState().currentId;
 
 interface TasksState {
   tasks: Task[];
@@ -19,14 +23,14 @@ export const useTasksStore = create<TasksState>()((set, get) => ({
   fetch: async () => {
     set({ loading: true });
     try {
-      const tasks = await db.listTasks();
+      const tasks = await db.listTasks(undefined, curWsId());
       set({ tasks });
     } finally {
       set({ loading: false });
     }
   },
   create: async (input) => {
-    const id = await db.createTask(input);
+    const id = await db.createTask({ ...input, workspaceId: input.workspaceId ?? curWsId() });
     await get().fetch();
     return id;
   },

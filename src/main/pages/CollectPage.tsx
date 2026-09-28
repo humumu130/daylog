@@ -6,6 +6,7 @@ import { useCollectStore } from '../../stores/useCollectStore';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useWorkspaceStore } from '../../stores/useWorkspaceStore';
 import { signatureOf, useGitStore } from '../../stores/useGitStore';
 import { scanRepos, type GitCommit } from '../../services/git';
 import { notifyChanged } from '../../services/events';
@@ -62,6 +63,10 @@ function autoBadgeSrc(s: RecordSource): 'ai' | 'git' | 'mixed' {
 
 export function CollectPage() {
   const navigate = useNavigate();
+  // P8b 空间分流：personal=文案中性化 + 未映射认领卡隐藏 + 查询/落库带 wsId；work 路径原样
+  const wsKind = useWorkspaceStore((s) => s.currentKind());
+  const wsId = useWorkspaceStore((s) => s.currentId);
+  const isPersonal = wsKind === 'personal';
   const repos = useSettingsStore((s) => s.settings.repos);
   const gitMode = useSettingsStore((s) => s.settings.gitImportMode);
   const patchSettings = useSettingsStore((s) => s.patch);
@@ -151,7 +156,7 @@ export function CollectPage() {
   }, [period, rangeFrom, rangeTo]);
 
   async function loadKnownHashes() {
-    const all = await db.listRecordsByRange('2000-01-01', '2999-12-31');
+    const all = await db.listRecordsByRange('2000-01-01', '2999-12-31', wsId);
     const hashes = new Set<string>();
     for (const r of all) {
       const h = r.meta?.git_hash;
@@ -249,7 +254,7 @@ export function CollectPage() {
       for (const it of sel) {
         await create({
           content: it.title, durationMin: Math.round(it.hours * 60), day: it.day, half: 'morning',
-          taskId: null, projectId: it.projectId, source: 'git', meta: { git_hashes: it.hashes },
+          taskId: null, projectId: it.projectId, source: 'git', meta: { git_hashes: it.hashes }, workspaceId: wsId,
         });
         count++;
       }
@@ -258,7 +263,7 @@ export function CollectPage() {
       for (const c of sel) {
         await create({
           content: cleanSubject(c.subject), durationMin: RAW_DEFAULT_MIN, day: c.date, half: 'morning',
-          taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash },
+          taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash }, workspaceId: wsId,
         });
         count++;
       }
@@ -292,7 +297,7 @@ export function CollectPage() {
         if (!it) continue;
         await create({
           content: it.title, durationMin: Math.round(a.hours * 60), day: a.day, half: 'morning',
-          taskId: null, projectId: it.projectId, source: 'git', meta: { git_hashes: it.hashes },
+          taskId: null, projectId: it.projectId, source: 'git', meta: { git_hashes: it.hashes }, workspaceId: wsId,
         });
         count++;
       }
@@ -302,7 +307,7 @@ export function CollectPage() {
         if (!c) continue;
         await create({
           content: cleanSubject(c.subject), durationMin: Math.round(a.hours * 60), day: a.day, half: 'morning',
-          taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash },
+          taskId: null, projectId: c.projectId, source: 'git', meta: { git_hash: c.hash }, workspaceId: wsId,
         });
         count++;
       }
@@ -324,7 +329,7 @@ export function CollectPage() {
     setPasteErr('');
     setPastePreview(null);
     try {
-      const existing = await db.listRecordsByDay(pasteDay); // 当日已有记录给 LLM 做语义去重提示
+      const existing = await db.listRecordsByDay(pasteDay, wsId); // 当日已有记录给 LLM 做语义去重提示
       const res = await previewConsolidate(pasteDay, text, {
         settings: collectCfg, llm: llmConfig, projects, existingRecords: existing,
       });
@@ -357,7 +362,7 @@ export function CollectPage() {
         await create({
           content: it.title, durationMin: Math.max(30, Math.round(it.hours * 60)), day: pasteDay, half: 'allday',
           // user_edited=确认收养：撤销自动/重整合不删用户确认过的导入条目
-          taskId: null, projectId: null, source: 'ai', meta: { confirmed: true, user_edited: true },
+          taskId: null, projectId: null, source: 'ai', meta: { confirmed: true, user_edited: true }, workspaceId: wsId,
         });
       }
       await notifyChanged();
@@ -426,16 +431,17 @@ export function CollectPage() {
     </div>
   );
 
-  // ---- 采集中心：自动条目（按日分组，日倒序） ----
+  // ---- 采集中心：自动条目（按日分组，日倒序）；空间隔离只看当前空间 ----
   const autoByDay = useMemo(() => {
     const groups = new Map<string, WorkRecord[]>();
     for (const r of autoRecords) {
+      if (r.workspaceId !== wsId) continue;
       const arr = groups.get(r.day);
       if (arr) arr.push(r);
       else groups.set(r.day, [r]);
     }
     return [...groups.entries()]; // autoRecords 已按 day 倒序 → 分组自然倒序
-  }, [autoRecords]);
+  }, [autoRecords, wsId]);
 
   const autoSection = (
     <section className="collect-section">
@@ -499,12 +505,14 @@ export function CollectPage() {
     </section>
   );
 
-  // ---- 采集中心：噪音过滤 ----
+  // ---- 采集中心：噪音过滤（personal 空间文案中性化：「计入记录 / 无记录价值」） ----
   const noiseSection = (
     <section className="collect-section">
       <div className="collect-section-h">
         <span className="collect-section-title">噪音过滤</span>
-        <span className="muted collect-section-sub">整合时被判为与工作无关的内容在此确认</span>
+        <span className="muted collect-section-sub">
+          {isPersonal ? '整合时被判为无记录价值的内容在此确认' : '整合时被判为与工作无关的内容在此确认'}
+        </span>
       </div>
       {!noiseFilterOn ? (
         <div className="collect-note">噪音过滤已关闭（设置·采集可开）</div>
@@ -522,18 +530,18 @@ export function CollectPage() {
                 <span className="collect-conf" title={`噪音置信度 ${n.confidence.toFixed(2)}`}>{n.confidence.toFixed(2)}</span>
                 <div className="collect-noise-actions">
                   <Button
-                    size="sm" variant="default" title="按正常工作内容参与该日整合"
+                    size="sm" variant="default" title={isPersonal ? '按正常记录内容参与该日整合' : '按正常工作内容参与该日整合'}
                     loading={busyKey === `noise:${n.fingerprint}`} disabled={busyKey !== null}
                     onClick={() => void decideNoise(n.fingerprint, true)}
                   >
-                    计入工作
+                    {isPersonal ? '计入记录' : '计入工作'}
                   </Button>
                   <Button
                     size="sm" variant="ghost" title="同类内容不再进入整合"
                     disabled={busyKey !== null}
                     onClick={() => void decideNoise(n.fingerprint, false)}
                   >
-                    确是噪音
+                    {isPersonal ? '无记录价值' : '确是噪音'}
                   </Button>
                 </div>
               </div>
@@ -566,33 +574,9 @@ export function CollectPage() {
   );
 
   // ---- 采集中心：未映射会话认领（F2：规则初筛 + LLM 精配 → 归组/新建/忽略一键应用） ----
-  const cwdSug = useCwdSuggestions();
+  // P8b：项目归组是 work 空间概念，personal 整卡隐藏——抽成组件以免 hook（识别请求）在 personal 下也跑
 
-  const unmappedSection = (
-    <section className="collect-section">
-      <div className="collect-section-h">
-        <span className="collect-section-title">未映射会话认领</span>
-        <span className="muted collect-section-sub">
-          发现工作目录尚未归属项目{cwdSug.degraded ? ' · 规则模式（未配置 LLM）' : ''}
-        </span>
-        <Button
-          size="sm" variant="ghost" style={{ marginLeft: 'auto' }}
-          disabled={cwdSug.loading} onClick={() => void cwdSug.reload()}
-        >
-          重新识别
-        </Button>
-      </div>
-      {cwdSug.error && <div className="warn-soft">{cwdSug.error}</div>}
-      <SuggestionList
-        title="AI 建议归组"
-        items={cwdSug.rows}
-        busy={cwdSug.loading}
-        onTargetChange={cwdSug.setTarget}
-        onDismiss={cwdSug.dismiss}
-        onApply={(sel) => void cwdSug.apply(sel)}
-      />
-    </section>
-  );
+  const unmappedSection = !isPersonal ? <UnmappedSection /> : null;
 
   // ---- 采集中心：手动导入（聊天记录·E1）——粘贴 → AI 解析预览 → 确认入库 ----
   const chatSection = (
@@ -893,5 +877,35 @@ export function CollectPage() {
         )}
       </section>
     </div>
+  );
+}
+
+/** 未映射会话认领卡（work 空间专属，P8b personal 隐藏；独立组件以免隐藏时仍跑识别 hook） */
+function UnmappedSection() {
+  const cwdSug = useCwdSuggestions();
+  return (
+    <section className="collect-section">
+      <div className="collect-section-h">
+        <span className="collect-section-title">未映射会话认领</span>
+        <span className="muted collect-section-sub">
+          发现工作目录尚未归属项目{cwdSug.degraded ? ' · 规则模式（未配置 LLM）' : ''}
+        </span>
+        <Button
+          size="sm" variant="ghost" style={{ marginLeft: 'auto' }}
+          disabled={cwdSug.loading} onClick={() => void cwdSug.reload()}
+        >
+          重新识别
+        </Button>
+      </div>
+      {cwdSug.error && <div className="warn-soft">{cwdSug.error}</div>}
+      <SuggestionList
+        title="AI 建议归组"
+        items={cwdSug.rows}
+        busy={cwdSug.loading}
+        onTargetChange={cwdSug.setTarget}
+        onDismiss={cwdSug.dismiss}
+        onApply={(sel) => void cwdSug.apply(sel)}
+      />
+    </section>
   );
 }

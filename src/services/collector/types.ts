@@ -1,7 +1,7 @@
 // 采集引擎类型（P5）：与 Rust ai_scan.rs 的四个命令契约一一对应（camelCase）。
 // 任何形状变更必须两侧同步改。
 
-import type { CollectSettings, LlmConfig, Project, WorkRecord } from '../../types/models';
+import type { CollectSettings, LlmConfig, Project, WorkRecord, WorkspaceKind } from '../../types/models';
 
 /** ai_session_list 返回：一个会话 jsonl 文件的元信息 */
 export interface AiSessionInfo {
@@ -84,6 +84,10 @@ export interface ConsolidatedEntry {
   sources: string[]; // 指纹列表：本条由哪些输入事件整合而来
   confidence: number; // 0~1
   half?: 'morning' | 'afternoon' | 'evening' | 'allday';
+  /** 成长类型（P8b 个人空间 LLM 产出；白名单校验，非法回退 'thought'；work 空间不用） */
+  type?: 'learning' | 'practice' | 'milestone' | 'thought';
+  /** 学到的知识点（P8b 个人空间；每条≤40 字，无则空数组；work 空间不用） */
+  learnings?: string[];
 }
 
 /** LLM 噪音判定输出 */
@@ -123,4 +127,8 @@ export interface CollectorCtx {
   llm: LlmConfig;
   projects: Project[];
   existingRecords: WorkRecord[]; // 引擎只读（防语义重复）
+  /** 目标空间（P8b 调度分桶路由传值）；不填= 'work'（存量调用兼容） */
+  workspaceId?: string;
+  /** 空间类型：切换 LLM prompt 口径（work=工时日志 / personal=成长记录）；不填= 'work' */
+  wsKind?: WorkspaceKind;
 }

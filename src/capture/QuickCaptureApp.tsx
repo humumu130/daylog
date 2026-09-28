@@ -9,8 +9,9 @@ import { useTasksStore } from '../stores/useTasksStore';
 import { todayYMD } from '../utils/date';
 import { formatHours, halfOf } from '../utils/halfDay';
 import { createRecord } from '../services/db';
+import { readPersistedWsId, useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { autoDuration, commitAutoDuration } from '../services/duration';
-import { notifyChanged, onTheme } from '../services/events';
+import { notifyChanged, onChanged, onTheme } from '../services/events';
 import { hideQuickCapture } from '../services/window';
 import { parseEntries } from '../utils/parseEntry';
 import './quick-capture.css';
@@ -36,9 +37,17 @@ export function QuickCaptureApp() {
       else void hideQuickCapture();
     });
     const ut = onTheme((t) => applyTheme(t));
+    // 主窗切换空间/其它窗口改动 → 同步本窗内存 currentId（localStorage 现读）并重拉，
+    // 保证弹出时项目/任务清单跟随主窗当前空间（stores 按各窗内存 currentId 过滤）
+    const uc = onChanged(() => {
+      useWorkspaceStore.setState({ currentId: readPersistedWsId() });
+      void fetchProjects();
+      void fetchTasks();
+    });
     return () => {
       void p.then((fn) => fn());
       void ut.then((fn) => fn());
+      void uc.then((fn) => fn());
     };
   }, [loadSettings, fetchProjects, fetchTasks]);
 
@@ -57,6 +66,8 @@ export function QuickCaptureApp() {
       return;
     }
     const half = halfOf(new Date(), settings.boundaries);
+    // P8b：落库进当前空间（现读 localStorage——主窗切换后快速记录跟随）
+    const wsId = readPersistedWsId();
     for (const e of entries) {
       const recordDay = e.day || todayYMD();
       if (e.durationMin !== null) {
@@ -68,6 +79,7 @@ export function QuickCaptureApp() {
           taskId: e.taskId,
           projectId: e.projectId,
           source: 'manual',
+          workspaceId: wsId,
         });
       } else {
         const plan = await autoDuration(recordDay, settings.dailyCapHours);
@@ -80,6 +92,7 @@ export function QuickCaptureApp() {
           projectId: e.projectId,
           source: 'manual',
           meta: { autoDuration: true },
+          workspaceId: wsId,
         });
         await commitAutoDuration(plan);
       }

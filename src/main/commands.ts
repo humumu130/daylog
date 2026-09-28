@@ -1,9 +1,10 @@
-import { CalendarRange, ChartLine, Clock, CloudUpload, Inbox, ListTodo, MoonStar, RefreshCw, Settings, Sparkles, Undo2, Zap } from 'lucide-react';
+import { Briefcase, CalendarRange, ChartLine, Clock, CloudUpload, Inbox, ListTodo, MoonStar, RefreshCw, Settings, Sparkles, Sprout, Undo2, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toggleQuickCapture, toggleWidget } from '../services/window';
 import { manualScanNow, rebuildDayNow, undoDay } from '../services/collector';
 import { notifyChanged } from '../services/events';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { addDays, todayYMD } from '../utils/date';
 import { toast } from './components/UndoToast';
 
@@ -23,6 +24,8 @@ export interface Command {
   icon: LucideIcon;
   hotkey?: string;
   keywords?: string[];
+  /** 模块矩阵守卫（P8b）：true=work 专属命令，personal 空间不进面板 */
+  workOnly?: boolean;
   run: (ctx: CommandCtx) => void;
 }
 
@@ -34,8 +37,9 @@ function gotoDay(ctx: CommandCtx, day: string): void {
 /**
  * 中央命令注册表（P2 骨架）：P5/P6/P8 的补扫/重整合/上报等 B/C 动作
  * 后续在此追加注册，命令面板与快捷键自动获得。
+ * P8b 空间制：静态底册 + 按当前空间动态过滤/追加（见下方 COMMANDS 动态视图）。
  */
-export const COMMANDS: Command[] = [
+const BASE_COMMANDS: Command[] = [
   {
     id: 'quick-capture',
     title: '快速记录',
@@ -121,6 +125,7 @@ export const COMMANDS: Command[] = [
     group: '快捷操作',
     icon: CloudUpload,
     keywords: ['choerodon', '猪齿鱼', '上报', '工时', 'sync'],
+    workOnly: true, // P8b 模块矩阵：个人空间无工时上报
     // 向导挂在 AppShell 层（MainApp），经事件唤起——不依赖当前页面路由
     run: () => window.dispatchEvent(new CustomEvent('daylog:open-batch-sync')),
   },
@@ -133,6 +138,44 @@ export const COMMANDS: Command[] = [
   { id: 'day-yesterday', title: '昨天', group: '跳转日期', icon: Clock, keywords: ['昨天', 'yesterday'], run: (ctx) => gotoDay(ctx, addDays(todayYMD(), -1)) },
   { id: 'day-week-ago', title: '上周今天', group: '跳转日期', icon: Clock, keywords: ['上周'], run: (ctx) => gotoDay(ctx, addDays(todayYMD(), -7)) },
 ];
+
+/** 「切换空间」：按当前空间清单动态生成其它未归档空间（每次取用现算，清单/当前变了即跟随） */
+function workspaceSwitchCommands(): Command[] {
+  const { workspaces, currentId } = useWorkspaceStore.getState();
+  return workspaces
+    .filter((w) => !w.archived && w.id !== currentId)
+    .map((w) => ({
+      id: `switch-ws-${w.id}`,
+      title: `切换到「${w.name}」`,
+      sub: w.type === 'work' ? '工作空间' : '个人空间',
+      group: '快捷操作' as const,
+      icon: w.type === 'work' ? Briefcase : Sprout,
+      keywords: ['workspace', '空间', '切换', w.name],
+      // 现读 store：闭包捕获的 id 过期也无害（switchTo 后 load() 自愈到合法空间）
+      run: () => useWorkspaceStore.getState().switchTo(w.id),
+    }));
+}
+
+/** 当前空间类型下可见的完整命令集：personal 隐藏 work 专属命令 + 追加切换空间命令 */
+function visibleCommands(): Command[] {
+  const kind = useWorkspaceStore.getState().currentKind();
+  const base = kind === 'personal' ? BASE_COMMANDS.filter((c) => !c.workOnly) : BASE_COMMANDS;
+  return [...base, ...workspaceSwitchCommands()];
+}
+
+/**
+ * 命令注册表（动态视图，P8b）：保持 `Command[]` 消费面不变（CommandPalette 直接
+ * filter/map/展开），但每次属性取用都现算可见集——面板任一次重算（挂载/查询变化）
+ * 拿到的都是「当前空间类型 + 当前空间清单」下的名单，work 专属命令在 personal
+ * 空间不出现，「切换空间」按其它未归档空间动态列出。
+ */
+export const COMMANDS: Command[] = new Proxy([] as Command[], {
+  get(_target, prop) {
+    const list = visibleCommands();
+    const v = list[prop as keyof Command[]];
+    return typeof v === 'function' ? (v as (...args: unknown[]) => unknown).bind(list) : v;
+  },
+});
 
 /** 最近使用记忆（命令面板高亮区） */
 const RECENTS_KEY = 'dl-palette-recents';

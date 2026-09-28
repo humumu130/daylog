@@ -8,6 +8,7 @@ import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
 import { useRecordsStore } from '../stores/useRecordsStore';
 import { createRecord, listRecordsByRange } from '../services/db';
+import { readPersistedWsId, useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { notifyChanged, onChanged, onTheme } from '../services/events';
 import { hideWidget } from '../services/window';
 import { autoDuration, commitAutoDuration } from '../services/duration';
@@ -61,8 +62,11 @@ export function WidgetApp() {
       if (f) inputRef.current?.focus();
     });
     const ut = onTheme((t) => applyTheme(t));
-    // 采集引擎产出（AI 待办摄入/自动条目）广播 → 浮窗实时刷新
+    // 采集引擎产出（AI 待办摄入/自动条目）广播 → 浮窗实时刷新；
+    // 主窗切换空间（switchTo 也走本事件）→ 先从 localStorage 现读同步本窗内存 currentId
+    // （stores 按各窗内存 currentId 过滤），再重拉，保证浮窗跟随主窗空间
     const uc = onChanged(() => {
+      useWorkspaceStore.setState({ currentId: readPersistedWsId() });
       void fetchTasks();
       void setRange(todayYMD(), todayYMD());
     });
@@ -129,28 +133,30 @@ export function WidgetApp() {
       const fromNote = readDuration(task.note);
       const h = hours != null ? hours : fromNote;
       const half = halfOf(new Date(), settings.boundaries);
+      // P8b：落库/查询进当前空间（现读 localStorage——主窗切换后浮窗跟随）
+      const wsId = readPersistedWsId();
       if (h != null && h > 0) {
         if (h > settings.dailyCapHours) {
           // 超过单日上限：倒着拆到多天（今天优先，满了转前一天）
           const span = Math.ceil(h / settings.dailyCapHours) + 1;
-          const recs = await listRecordsByRange(addDays(todayYMD(), -span), todayYMD());
+          const recs = await listRecordsByRange(addDays(todayYMD(), -span), todayYMD(), wsId);
           const existing: Record<string, number> = {};
           for (const r of recs) existing[r.day] = (existing[r.day] ?? 0) + (r.durationMin ?? 0) / 60;
           const split = splitHoursBackward(h, settings.dailyCapHours, existing, todayYMD());
           for (const s of split) {
-            await createRecord({ content: task.title, durationMin: Math.round(s.hours * 60), day: s.day, half, taskId: task.id, projectId: task.projectId, source: 'manual' });
+            await createRecord({ content: task.title, durationMin: Math.round(s.hours * 60), day: s.day, half, taskId: task.id, projectId: task.projectId, source: 'manual', workspaceId: wsId });
           }
           await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());
           flashMsg(`已记 ${split.length} 天 · 共 ${h}h`);
         } else {
-          await createRecord({ content: task.title, durationMin: Math.round(h * 60), day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual' });
+          await createRecord({ content: task.title, durationMin: Math.round(h * 60), day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual', workspaceId: wsId });
           await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());
           flashMsg(`已完成 · ${h}h`);
         }
       } else {
         // 无显式工时：autoDuration 智能分配
         const plan = await autoDuration(todayYMD(), settings.dailyCapHours);
-        await createRecord({ content: task.title, durationMin: plan.share, day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual', meta: { autoDuration: true } });
+        await createRecord({ content: task.title, durationMin: plan.share, day: todayYMD(), half, taskId: task.id, projectId: task.projectId, source: 'manual', meta: { autoDuration: true }, workspaceId: wsId });
         await commitAutoDuration(plan);
         await setStatus(task.id, 'done'); await notifyChanged(); await setRange(todayYMD(), todayYMD());
         flashMsg(`已记一笔 · 自动 ${formatHM(plan.share)}`);

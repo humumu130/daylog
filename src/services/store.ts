@@ -79,6 +79,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     weekendOvertime: true,
     earlyStartOvertime: false,
     overtimeCapHours: 20,
+    suggestionsDismissed: [],
   },
   choerodon: null,
   reportPolicy: 'fact' as const,

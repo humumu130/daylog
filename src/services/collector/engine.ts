@@ -2,6 +2,8 @@
 // 调用（机制性跨源合并）；输出严格 JSON；噪音三通道；后校验（输入覆盖 +
 // Σ≤活跃总时长−手动已占 + title 非空去重）；失败降级不断档。
 // 采 SKILL 口径：成果式表述 / 同主题合并 / 忽略琐碎 / 技术细节提取 / 相邻去重。
+// P8b 空间参数化：ctx.workspaceId/wsKind 决定噪音指纹空间、入库空间与 prompt 口径
+//（personal=成长记录条目，带 type/learnings；hours/活跃区间约束两空间共用）。
 
 import type { Half, WorkRecord } from '../../types/models';
 import { quantizeMinutes } from '../duration';
@@ -12,8 +14,18 @@ import { digestFingerprint, ingestedByDay, markIngested, markRunUndone, noiseDig
 import { sha256Hex } from './scan';
 import type { CollectorCtx, ConsolidatedEntry, EngineInput, NoiseStatus, NoiseVerdict, RunSummary } from './types';
 
-const WORKSPACE_ID = 'work'; // P8b 空间制激活前的默认空间
 const HALVES: Half[] = ['allday', 'morning', 'afternoon', 'evening'];
+
+/** 默认空间（= db.DEFAULT_WORKSPACE_ID 的 'work'）。不直接引 db 常量：engine 单测对
+ *  db 做部分 mock（未导出该常量），运行时访问会抛错——本地字面量锁定同一契约值 */
+const DEFAULT_WS = 'work';
+
+/** 当前空间 id（undoDay/removeAndIgnoreKind 缺省值用）。延迟动态 import：
+ *  engine 被单测直接加载时不必拉起 store 模块（与 schedule.ts 引 store 同款口径） */
+async function currentWsId(): Promise<string> {
+  const { readPersistedWsId } = await import('../../stores/useWorkspaceStore');
+  return readPersistedWsId();
+}
 
 // ---------- 对外入口 ----------
 
@@ -25,14 +37,17 @@ export interface ConsolidateOptions {
 /** 对一个日子的全部输入跑整合（inputs 必须同日）。多项目自动分组各自调用 LLM。 */
 export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx: CollectorCtx, opts: ConsolidateOptions = {}): Promise<RunSummary> {
   const mode = opts.mode ?? 'new';
+  // 空间上下文（P8b）：ctx 不带= 'work'（存量调用兼容）；噪音指纹/留痕/入库全部按此空间
+  const wsId = ctx.workspaceId ?? DEFAULT_WS;
+  const wsKind = ctx.wsKind ?? 'work';
   const summary: RunSummary = { created: 0, skippedExisting: 0, pending: 0, autoDropped: 0, degraded: false };
 
   // 同类已判噪音内容：不再进 LLM（用户判定沉淀为规则，同类不再问）。
   // 先于 rebuild 计算：重建输入需按判定状态排除（noise 桶）或恢复（用户翻案 kept）
-  const noiseIndex = ctx.settings.noiseFilter ? await noiseDigestIndex(WORKSPACE_ID) : new Map<string, NoiseStatus>();
+  const noiseIndex = ctx.settings.noiseFilter ? await noiseDigestIndex(wsId) : new Map<string, NoiseStatus>();
   if (mode === 'rebuild') {
-    await deleteAutoRecordsOfRun(day);
-    rawInputs = await inputsFromIngested(day, noiseIndex);
+    await deleteAutoRecordsOfRun(day, wsId);
+    rawInputs = await inputsFromIngested(day, noiseIndex, wsId);
   }
   if (rawInputs.length === 0) return summary;
 
@@ -45,7 +60,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
   const ctxForLlm: CollectorCtx = { ...ctx, existingRecords: dedupBase };
   const inputs = rawInputs.filter((x) => {
     if (!ctx.settings.noiseFilter) return true;
-    return noiseIndex.get(digestFingerprint(WORKSPACE_ID, digestOf(x.text))) !== 'dropped';
+    return noiseIndex.get(digestFingerprint(wsId, digestOf(x.text))) !== 'dropped';
   });
   if (inputs.length === 0) return summary;
 
@@ -106,7 +121,7 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
       if (!ctx.settings.noiseFilter || !n) continue;
       const conf = Number(n.confidence) || 0;
       if (conf < 0.5) continue;
-      const fpKey = digestFingerprint(WORKSPACE_ID, digestOf(n.digest ?? ''));
+      const fpKey = digestFingerprint(wsId, digestOf(n.digest ?? ''));
       const prior = noiseIndex.get(fpKey);
       const status: 'auto_dropped' | 'pending' = prior === 'kept' ? 'pending' : conf >= autoDropAt ? 'auto_dropped' : 'pending';
       if (status === 'auto_dropped') summary.autoDropped++;
@@ -194,6 +209,9 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
         day,
         half,
         source: hasGit && hasAi ? 'mixed' : hasGit ? 'git' : 'ai',
+        workspaceId: wsId,
+        recordType: wsKind === 'personal' ? (e.type ?? 'thought') : 'work',
+        learnings: wsKind === 'personal' ? (e.learnings ?? []) : [],
         meta: {
           runId,
           sources: srcFps,
@@ -210,25 +228,28 @@ export async function runConsolidate(day: string, rawInputs: EngineInput[], ctx:
   // ---- 收尾：摄入指纹（哨兵：撤销后不复活）+ 噪音留痕 + 运行记录 ----
   await markIngested([...consumed.values()]);
   for (const n of noiseRows) {
-    await upsertNoise({ fingerprint: n.fingerprint, workspaceId: WORKSPACE_ID, status: n.status, digest: n.digest, reason: n.reason, confidence: n.confidence, day: n.day });
+    await upsertNoise({ fingerprint: n.fingerprint, workspaceId: wsId, status: n.status, digest: n.digest, reason: n.reason, confidence: n.confidence, day: n.day });
   }
   const inputSig = await sha256Hex(rawInputs.map((x) => x.fingerprint).sort().join(','));
   await saveRun({ id: runId, day, inputSig, status: summary.degraded ? 'failed' : 'success', summary: JSON.stringify(summary) });
   return summary;
 }
 
-/** 按日撤销：删自动条目（user_edited 保护）+ 运行标 undone（指纹哨兵防复活） */
-export async function undoDay(day: string): Promise<number> {
+/** 按日撤销：删自动条目（user_edited 保护）+ 运行标 undone（指纹哨兵防复活）。
+ *  wsId 缺省=当前空间（服务模块直读持久值；跨空间场景显式传参） */
+export async function undoDay(day: string, wsId?: string): Promise<number> {
+  const ws = wsId ?? (await currentWsId());
   await markRunUndone(day);
-  return deleteAutoRecordsOfRun(day);
+  return deleteAutoRecordsOfRun(day, ws);
 }
 
 /** 撤销第二级（单条）：移除该自动条目 + 沉淀 dropped 规则（同内容摘要不再进 LLM） */
-export async function removeAndIgnoreKind(record: { id: string; content: string; day: string }): Promise<void> {
+export async function removeAndIgnoreKind(record: { id: string; content: string; day: string }, wsId?: string): Promise<void> {
+  const ws = wsId ?? (await currentWsId());
   const digest = digestOf(record.content).slice(0, 60);
   await upsertNoise({
-    fingerprint: digestFingerprint(WORKSPACE_ID, digest),
-    workspaceId: WORKSPACE_ID,
+    fingerprint: digestFingerprint(ws, digest),
+    workspaceId: ws,
     status: 'dropped',
     digest,
     reason: '用户移除并忽略同类',
@@ -299,8 +320,8 @@ function userEdited(r: WorkRecord): boolean {
   return r.meta?.user_edited === true;
 }
 
-async function deleteAutoRecordsOfRun(day: string): Promise<number> {
-  const recs = await db.listRecordsByDay(day);
+async function deleteAutoRecordsOfRun(day: string, wsId: string): Promise<number> {
+  const recs = await db.listRecordsByDay(day, wsId);
   let n = 0;
   for (const r of recs) {
     if (r.source === 'manual' || r.source === 'timer' || r.source === 'import') continue;
@@ -313,7 +334,7 @@ async function deleteAutoRecordsOfRun(day: string): Promise<number> {
 
 /** 由已摄入快照重建某日输入：noise 桶默认排除（用户翻案 kept 后恢复参与重建）。
  *  skipped/merged 桶不排除——重整合本就应从全部真实输入重新组合，结果幂等。 */
-async function inputsFromIngested(day: string, noiseIndex: Map<string, NoiseStatus>): Promise<EngineInput[]> {
+async function inputsFromIngested(day: string, noiseIndex: Map<string, NoiseStatus>, wsId: string): Promise<EngineInput[]> {
   const rows = await ingestedByDay(day);
   return rows
     .map((r) => {
@@ -322,7 +343,7 @@ async function inputsFromIngested(day: string, noiseIndex: Map<string, NoiseStat
         if (!p || typeof p.text !== 'string') return null;
         if (
           p.bucket === 'noise' &&
-          noiseIndex.get(digestFingerprint(WORKSPACE_ID, digestOf(p.text))) !== 'kept'
+          noiseIndex.get(digestFingerprint(wsId, digestOf(p.text))) !== 'kept'
         ) {
           return null;
         }
@@ -381,21 +402,35 @@ async function callLlm(day: string, projectName: string, inputs: EngineInput[], 
     .map((r) => `- ${r.content}（${r.durationMin ? `${r.durationMin / 60}h` : '未计时长'}）`)
     .join('\n');
 
-  const system =
-    '你是工作日志整理助手。把 AI 会话记录与 git 提交整理成工作日志条目。要求：' +
-    '1) 用成果式表述（"完成登录组件开发，含表单校验"而非"用户让我做登录页"）；' +
-    '2) 同项目相邻同主题内容合并为一条（一天一项目约 1~6 条）；' +
-    '3) 从内容提取技术细节（改了什么/修了什么/做了什么决策）充实条目，但绝不虚构；' +
-    '4) 与已有记录语义重复的工作放入 noise（reason 写明已被哪条覆盖）；' +
-    '5) 与工作无关的内容（闲聊/测试性提问/生活话题）放入 noise 并给噪音置信度。' +
-    '只输出 JSON，不要任何其它文字。';
+  // prompt 按空间类型切换（P8b）：work=工时日志口径（原文案不动）；personal=成长记录口径
+  const personal = (ctx.wsKind ?? 'work') === 'personal';
+  const system = personal
+    ? '你是个人成长记录整理助手。把 AI 会话记录整理成成长记录条目。要求：' +
+      '1) 成果式表述；' +
+      '2) 相邻同主题合并（一天约 1~6 条）；' +
+      '3) 提取技术细节充实条目，绝不虚构；' +
+      '4) 与已有记录语义重复的放入 noise；' +
+      '5) 只过滤纯琐碎内容（无信息量的测试/闲聊），学习/练习/探索话题是正主必须保留；' +
+      '6) 为每条提炼 learnings（学到的知识点，每条≤40字，无则空数组）与 type（learning|practice|milestone|thought 四选一）。' +
+      '只输出 JSON，不要任何其它文字。'
+    : '你是工作日志整理助手。把 AI 会话记录与 git 提交整理成工作日志条目。要求：' +
+      '1) 用成果式表述（"完成登录组件开发，含表单校验"而非"用户让我做登录页"）；' +
+      '2) 同项目相邻同主题内容合并为一条（一天一项目约 1~6 条）；' +
+      '3) 从内容提取技术细节（改了什么/修了什么/做了什么决策）充实条目，但绝不虚构；' +
+      '4) 与已有记录语义重复的工作放入 noise（reason 写明已被哪条覆盖）；' +
+      '5) 与工作无关的内容（闲聊/测试性提问/生活话题）放入 noise 并给噪音置信度。' +
+      '只输出 JSON，不要任何其它文字。';
+
+  const itemSchema = personal
+    ? '{"title":"成果式描述","hours":1.5,"sources":["指纹"],"confidence":0.9,"half":"morning","type":"learning","learnings":["学到的知识点≤40字"]}'
+    : '{"title":"成果式描述","hours":1.5,"sources":["指纹"],"confidence":0.9,"half":"morning"}';
 
   const user =
     `日期：${day}\n项目：${projectName}\n本组活跃时长（小时）：${activeHours}\n` +
     (budgetHours !== null ? `本组工时上限（小时，Σ(items.hours) 不得超过）：${budgetHours}\n` : '') +
     `\n原始材料（[指纹] (类型 时间) 内容）：\n${lines.join('\n')}\n` +
     (existing ? `\n当日已有记录（语义去重用）：\n${existing}\n` : '') +
-    `\n输出 JSON：{"items":[{"title":"成果式描述","hours":1.5,"sources":["指纹"],"confidence":0.9,"half":"morning"}],` +
+    `\n输出 JSON：{"items":[${itemSchema}],` +
     `"noise":[{"digest":"内容摘要≤30字","reason":"原因","confidence":0.95,"sources":["指纹"]}]}\n` +
     '约束：每个输入指纹必须出现在 items[].sources 或 noise[].sources 里恰好一次；hours 最小 0.5、Σ≤上限；title 非空互不重复。';
 
@@ -410,11 +445,30 @@ async function callLlm(day: string, projectName: string, inputs: EngineInput[], 
   return {
     items: (parsed.items ?? [])
       .filter((e) => e && typeof e.title === 'string')
-      .map((e) => ({ ...e, sources: expand(e.sources), hours: Number(e.hours) || 0, confidence: Number(e.confidence) || 0.5 })),
+      .map((e) => ({
+        ...e,
+        sources: expand(e.sources),
+        hours: Number(e.hours) || 0,
+        confidence: Number(e.confidence) || 0.5,
+        type: normalizeEntryType(e.type),
+        learnings: normalizeLearnings(e.learnings),
+      })),
     noise: (parsed.noise ?? [])
       .filter((n) => n && typeof n.digest === 'string')
       .map((n) => ({ ...n, sources: expand(n.sources), confidence: Number(n.confidence) || 0 })),
   };
+}
+
+/** 个人空间成长类型白名单校验：非法/缺失回退 undefined（入库时兜底 'thought'） */
+function normalizeEntryType(t: unknown): ConsolidatedEntry['type'] {
+  return t === 'learning' || t === 'practice' || t === 'milestone' || t === 'thought' ? t : undefined;
+}
+
+/** learnings 数组化：只留非空字符串并裁到 40 字（与 prompt 口径一致） */
+function normalizeLearnings(v: unknown): string[] {
+  return Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim().slice(0, 40))
+    : [];
 }
 
 function extractJsonObject(text: string): string {

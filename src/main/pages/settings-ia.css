@@ -290,3 +290,60 @@
 .cho-map-list {
   /* SuggestionList 自带卡片样式，这里只控间距 */
 }
+
+/* ============================================================
+   P8b 设置页·空间分区：空间卡片 / 内联重命名 / 新建弹窗。
+   铁律同上：只引用 --dl-* token。
+   ============================================================ */
+.ws-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-2);
+}
+.ws-card {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  padding: var(--dl-space-3) var(--dl-space-4);
+  border: 1px solid var(--dl-border-1);
+  border-radius: var(--dl-radius-md);
+  background: var(--dl-bg-surface);
+}
+.ws-card.current {
+  border-color: var(--dl-accent);
+  box-shadow: 0 0 0 1px var(--dl-accent-subtle);
+}
+.ws-card.archived {
+  opacity: 0.55;
+}
+.ws-card-ico {
+  display: inline-flex;
+  color: var(--dl-fg-2);
+}
+.ws-card-name {
+  font-weight: 600;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-card-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  flex-shrink: 0;
+}
+.ws-edit {
+  flex: 1;
+}
+.ws-arch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+  cursor: default;
+}

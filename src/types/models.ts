@@ -157,6 +157,8 @@ export interface CollectSettings {
   earlyStartOvertime: boolean;
   /** 月度加班额度（小时）：上限提醒用（证据如实累计，不硬塞不硬砍） */
   overtimeCapHours: number;
+  /** F2 未映射 cwd 建议：用户已忽略的建议 id（持久记忆，不再打扰）；存量配置无此键=空 */
+  suggestionsDismissed?: string[];
 }
 
 export interface AppSettings {

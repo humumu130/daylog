@@ -16,8 +16,10 @@ import {
 } from '../services/collector';
 import type { WorkRecord } from '../types/models';
 import { addDays, todayYMD } from '../utils/date';
+import { useWorkspaceStore } from './useWorkspaceStore';
 
-const WORKSPACE_ID = 'work';
+/** 当前空间 id（噪音查询/自动条目窗口/撤销按当前空间；useWorkspaceStore 无反向依赖，无环） */
+const curWsId = (): string => useWorkspaceStore.getState().currentId;
 /** 自动来源（引擎产出）：ai / git / mixed */
 const AUTO_SOURCES = new Set(['ai', 'git', 'mixed']);
 /** 自动条目展示窗口：近 14 天（含今日） */
@@ -69,10 +71,11 @@ export const useCollectStore = create<CollectState>()((set, get) => ({
   error: null,
 
   refresh: async () => {
+    const wsId = curWsId();
     const [pending, autoDropped, records, pass] = await Promise.all([
-      collectorState.listNoise(WORKSPACE_ID, 'pending'),
-      collectorState.listNoise(WORKSPACE_ID, 'auto_dropped'),
-      db.listRecordsByRange(addDays(todayYMD(), -AUTO_WINDOW_BACK_DAYS), todayYMD()),
+      collectorState.listNoise(wsId, 'pending'),
+      collectorState.listNoise(wsId, 'auto_dropped'),
+      db.listRecordsByRange(addDays(todayYMD(), -AUTO_WINDOW_BACK_DAYS), todayYMD(), wsId),
       Promise.resolve(getLastPass()),
     ]);
     const autoRecords = records
@@ -139,7 +142,7 @@ export const useCollectStore = create<CollectState>()((set, get) => ({
     if (get().busyKey) return;
     set({ busyKey: key, error: null });
     try {
-      await undoDay(day);
+      await undoDay(day, curWsId());
       await get().refresh();
       void notifyChanged();
     } catch (e) {
@@ -154,7 +157,7 @@ export const useCollectStore = create<CollectState>()((set, get) => ({
     if (get().busyKey) return;
     set({ busyKey: key, error: null });
     try {
-      await removeAndIgnoreKind(record);
+      await removeAndIgnoreKind(record, curWsId());
       await get().refresh();
       void notifyChanged();
     } catch (e) {

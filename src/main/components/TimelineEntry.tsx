@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ListTodo, Pencil, Trash2 } from 'lucide-react';
 import { Badge, SourceBadge } from '../../ui';
-import type { Project, RecordSource, WorkRecord } from '../../types/models';
+import { RECORD_TYPE_LABELS, type Project, type RecordSource, type RecordType, type WorkRecord } from '../../types/models';
 import type { RecordInput } from '../../services/db';
 import { DurationStepper } from './DurationStepper';
 import { ProjectChipSelect } from './ProjectChipSelect';
@@ -11,9 +11,21 @@ export interface EntryPatch {
   content?: string;
   durationMin?: number | null;
   projectId?: string | null;
+  /** 学到什么（个人空间，行内整组覆写；每行一条由组件侧拆好） */
+  learnings?: string[];
 }
 
-/** 已有记录 → 全量落库载荷（保 meta/source 等字段不丢）；TimelineEntry 消费方共用 */
+/** 个人空间记录类型徽标建议色（内联色值 + 1a 透明底，参照 SourceBadge/tl-ptag 做法；
+ *  work 类型不显示徽标故不在表内） */
+const RECORD_TYPE_COLORS: Partial<Record<RecordType, string>> = {
+  learning: '#8b5cf6',
+  practice: '#3b82f6',
+  milestone: '#f59e0b',
+  thought: '#94a3b8',
+  retro: '#10b981',
+};
+
+/** 已有记录 → 全量落库载荷（保 meta/source 及 P8b 空间字段不丢）；TimelineEntry 消费方共用 */
 export function recordToInput(r: WorkRecord): RecordInput {
   return {
     content: r.content,
@@ -24,6 +36,10 @@ export function recordToInput(r: WorkRecord): RecordInput {
     projectId: r.projectId,
     source: r.source,
     meta: r.meta,
+    workspaceId: r.workspaceId,
+    recordType: r.recordType,
+    learnings: r.learnings,
+    tags: r.tags,
   };
 }
 
@@ -53,6 +69,17 @@ function sourceBadge(source: RecordSource) {
   return <Badge tone="neutral">{EXTRA_SRC_LABEL[source] ?? source}</Badge>;
 }
 
+/** 记录类型徽标（个人空间条目）；work 类型不显示 */
+function recordTypeBadge(t: RecordType) {
+  if (t === 'work') return null;
+  const color = RECORD_TYPE_COLORS[t] ?? '#94a3b8';
+  return (
+    <span className="rt-type-badge" style={{ color, background: color + '1a' }}>
+      {RECORD_TYPE_LABELS[t]}
+    </span>
+  );
+}
+
 /**
  * 时间轴条目 v2：行内编辑（双击内容 / stepper 改时长 / chip 换项目）+ 键盘（E 编辑 · Del 删除 · ↑↓ 行导航）。
  * RecordEditor 退居全字段兜底。
@@ -61,6 +88,11 @@ export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete, on
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(record.content);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // 学到什么（P8b 个人空间）：行内展开编辑，每行一条（RecordEditor 不动，编辑走此内联）
+  const isPersonal = record.recordType !== 'work';
+  const [learnEditing, setLearnEditing] = useState(false);
+  const [learnDraft, setLearnDraft] = useState(() => record.learnings.join('\n'));
+  const learnTaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!editing) setDraft(record.content);
@@ -70,10 +102,29 @@ export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete, on
     if (editing) taRef.current?.focus();
   }, [editing]);
 
+  useEffect(() => {
+    if (!learnEditing) setLearnDraft(record.learnings.join('\n'));
+  }, [record.learnings, learnEditing]);
+
+  useEffect(() => {
+    if (learnEditing) learnTaRef.current?.focus();
+  }, [learnEditing]);
+
   function commitContent() {
     const t = draft.trim();
     if (t && t !== record.content) onUpdate(record.id, { content: t });
     setEditing(false);
+  }
+
+  /** 学到什么落库：按行拆分、去空去重（顺序保留） */
+  function commitLearnings() {
+    const lines = learnDraft
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const deduped = [...new Set(lines)];
+    if (deduped.join('\n') !== record.learnings.join('\n')) onUpdate(record.id, { learnings: deduped });
+    setLearnEditing(false);
   }
 
   /** 行级键盘：焦点在行自身（非内部控件）时生效 */
@@ -147,6 +198,17 @@ export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete, on
           onChange={(durationMin) => onUpdate(record.id, { durationMin })}
         />
         {sourceBadge(record.source)}
+        {isPersonal && recordTypeBadge(record.recordType)}
+        {isPersonal && !learnEditing && (
+          <button
+            type="button"
+            className={`rt-learn-chip${record.learnings.length === 0 ? ' is-empty' : ''}`}
+            title="学到什么（每行一条）"
+            onClick={() => setLearnEditing(true)}
+          >
+            {record.learnings.length > 0 ? `学到 ${record.learnings.length}` : '+ 学到'}
+          </button>
+        )}
         <span className="tl-actions">
           {onToTodo && (
             <button
@@ -173,6 +235,33 @@ export function TimelineEntry({ record, projects, onUpdate, onEdit, onDelete, on
           </button>
         </span>
       </div>
+      {isPersonal && learnEditing && (
+        <div className="rt-entry-sub">
+          <textarea
+            ref={learnTaRef}
+            className="rt-learn-edit"
+            rows={Math.max(2, record.learnings.length + 1)}
+            placeholder="学到什么，每行一条"
+            value={learnDraft}
+            onChange={(e) => setLearnDraft(e.target.value)}
+            onBlur={commitLearnings}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setLearnDraft(record.learnings.join('\n'));
+                setLearnEditing(false);
+              }
+            }}
+          />
+        </div>
+      )}
+      {isPersonal && !learnEditing && record.learnings.length > 0 && (
+        <ul className="rt-entry-sub rt-learn-list" title="点击编辑学到什么">
+          {record.learnings.map((l, i) => (
+            <li key={i} onClick={() => setLearnEditing(true)}>{l}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

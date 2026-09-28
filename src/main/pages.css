@@ -707,3 +707,229 @@ textarea.sel {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+/* ============ P8b 个人空间（--dl- token；新类一律 rt-/retro- 前缀） ============ */
+/* History 日详情：条数与类型分布（无工时口径） */
+.rt-day-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: var(--dl-bg-muted);
+  border-radius: var(--dl-radius-md);
+}
+.rt-day-summary-count {
+  font-size: var(--dl-text-sm);
+  font-weight: 600;
+  color: var(--dl-fg-1);
+}
+.rt-day-summary-type {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+  padding-left: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* RetroCard（个人空间报告页=复盘视图） */
+.retro-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dl-space-5);
+}
+.retro-loading {
+  display: flex;
+  justify-content: center;
+  padding: 72px 0;
+}
+.retro-stats {
+  display: flex;
+  gap: var(--dl-space-6);
+  padding: 12px 18px;
+  background: var(--dl-bg-muted);
+  border-radius: var(--dl-radius-md);
+}
+.retro-stat {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.retro-stat-num {
+  font-size: var(--dl-text-xl);
+  font-weight: 700;
+  color: var(--dl-fg-1);
+  font-variant-numeric: tabular-nums;
+}
+.retro-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--dl-space-5);
+}
+@media (max-width: 900px) {
+  .retro-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.retro-sec-h {
+  font-size: var(--dl-text-sm);
+  font-weight: 600;
+  color: var(--dl-fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 8px;
+}
+.retro-sec-h-2 {
+  margin-top: 14px;
+}
+.retro-sec-n {
+  font-size: var(--dl-text-xs);
+  font-weight: 600;
+  color: var(--dl-accent);
+  background: var(--dl-accent-subtle);
+  border-radius: var(--dl-radius-full);
+  padding: 0 7px;
+  margin-left: 4px;
+  text-transform: none;
+}
+.retro-theme-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: var(--dl-space-2);
+  padding: 3px 0;
+}
+.retro-theme-name {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.retro-theme-track {
+  height: 8px;
+  background: var(--dl-bg-muted);
+  border-radius: var(--dl-radius-full);
+  overflow: hidden;
+}
+.retro-theme-bar {
+  display: block;
+  height: 100%;
+  background: var(--dl-accent);
+  border-radius: var(--dl-radius-full);
+}
+.retro-theme-count {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.retro-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.retro-list li {
+  font-size: var(--dl-text-base);
+  color: var(--dl-fg-2);
+  line-height: 1.6;
+  word-break: break-word;
+}
+.retro-milestones li::marker {
+  color: var(--dl-warning);
+}
+.retro-empty-line {
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-3);
+  padding: 6px 0;
+}
+.retro-gen-head {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-2);
+  margin-bottom: var(--dl-space-2);
+}
+.retro-gen-head .retro-sec-h {
+  margin: 0;
+}
+.retro-gen-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.retro-export-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dl-space-3);
+  flex-wrap: wrap;
+}
+/* 历史快照列表 */
+.retro-snaps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.retro-snap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 6px;
+  border: none;
+  background: transparent;
+  border-radius: var(--dl-radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--dl-motion-fast);
+}
+.retro-snap-row:hover {
+  background: var(--dl-bg-hover);
+}
+.retro-snap-period {
+  font-size: var(--dl-text-xs);
+  font-weight: 700;
+  color: var(--dl-accent);
+  background: var(--dl-accent-subtle);
+  padding: 1px 8px;
+  border-radius: var(--dl-radius-sm);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.retro-snap-preview {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--dl-text-sm);
+  color: var(--dl-fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.retro-snap-date {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-fg-3);
+  white-space: nowrap;
+}
+.retro-snap-toggle {
+  font-size: var(--dl-text-xs);
+  color: var(--dl-accent);
+  white-space: nowrap;
+}
+.retro-snap-full {
+  margin: 2px 0 8px;
+  padding: 12px 14px;
+  background: var(--dl-bg-muted);
+  border-radius: var(--dl-radius-md);
+  font-family: inherit;
+  font-size: var(--dl-text-base);
+  line-height: 1.8;
+  color: var(--dl-fg-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}

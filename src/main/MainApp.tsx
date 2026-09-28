@@ -13,6 +13,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { useProjectsStore } from '../stores/useProjectsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useTasksStore } from '../stores/useTasksStore';
+import { useWorkspaceStore } from '../stores/useWorkspaceStore';
+import * as db from '../services/db';
 import { setAutostart } from '../services/autostart';
 import { startCollector } from '../services/collector';
 import { setScrubBus } from '../services/llm';
@@ -26,6 +28,7 @@ import { useUiStore } from '../stores/useUiStore';
 import { startReminder } from '../services/reminder';
 import { CommandPalette } from './components/CommandPalette';
 import { ChoerodonBatchModal } from './components/ChoerodonBatchModal';
+import { OnboardModal } from './components/OnboardModal';
 import { ToastHost } from './components/UndoToast';
 import './app.css';
 import './pages.css';
@@ -60,9 +63,16 @@ export function MainApp() {
   // 猪齿鱼批量上报向导（P8）：单实例挂 AppShell 层，今日页日菜单 / 命令面板经事件唤起，
   // 任意页面可用（Modal 自取记录，与页面路由解耦）
   const [batchSyncOpen, setBatchSyncOpen] = useState(false);
+  // 首启向导（P8b）：未完成过且全库零记录才弹（MainApp init 判定）
+  const [onboardOpen, setOnboardOpen] = useState(false);
 
   useEffect(() => {
-    const onOpenBatchSync = () => setBatchSyncOpen(true);
+    const onOpenBatchSync = () => {
+      // 模块矩阵守卫（第一层）：personal 空间不可唤起上报向导——
+      // 入口散在各页（今日页日菜单等无法逐个改），事件总线是统一收口点
+      if (useWorkspaceStore.getState().currentKind() !== 'work') return;
+      setBatchSyncOpen(true);
+    };
     window.addEventListener('daylog:open-batch-sync', onOpenBatchSync);
     return () => window.removeEventListener('daylog:open-batch-sync', onOpenBatchSync);
   }, []);
@@ -77,11 +87,19 @@ export function MainApp() {
     setScrubBus(settings.collect.scrubEnabled);
   }, [settings.collect.scrubEnabled]);
 
-  // 初始化：加载设置、拉取基础数据、应用自启
+  // 初始化：加载设置、空间清单（数据拉取前，查询按当前空间过滤）、拉取基础数据、应用自启
   useEffect(() => {
     void (async () => {
       const s = await load();
       await setAutostart(s.autostart).catch(() => undefined);
+      // 空间清单就位（P8b）：在数据 store 拉取前加载，当前空间/类型守卫从此可用
+      await useWorkspaceStore.getState().load();
+      // 首启向导判定：从未完成过 && 全库（跨空间）零记录 → 弹三选一；
+      // 存量升级 onboardDone=false 但有数据 → 不弹不多出任何东西
+      if (!s.onboardDone) {
+        const all = await db.listRecordsByRange('2000-01-01', '2999-12-31');
+        if (all.length === 0) setOnboardOpen(true);
+      }
       await Promise.all([fetchProjects(), fetchTasks()]);
       setReady(true);
       // 启动时自动备份（按设置：开关/份数/目录；不阻塞主流程）
@@ -131,10 +149,11 @@ export function MainApp() {
     return () => { unlisten?.(); };
   }, []);
 
-  // 跨窗口数据同步：捕获面板/待办插件改动后自动刷新
+  // 跨窗口数据同步：捕获面板/待办插件改动后自动刷新；其它窗口建/改/切空间后同步清单
   useEffect(() => {
     if (!ready) return;
     const p = onChanged(() => {
+      void useWorkspaceStore.getState().load();
       void fetchTasks();
       void fetchRecords();
     });
@@ -185,6 +204,7 @@ export function MainApp() {
           </main>
         </div>
         <CommandPalette />
+        <OnboardModal open={onboardOpen} onDone={() => setOnboardOpen(false)} />
         <ChoerodonBatchModal open={batchSyncOpen} onClose={() => setBatchSyncOpen(false)} />
         <ToastHost />
       </HashRouter>

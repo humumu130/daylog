@@ -1,10 +1,8 @@
-// F2 未映射 cwd 建议 hook（P6）：
+// F2 未映射 cwd 建议 hook（P6，P8b 补持久）：
 // ai_session_cwds 取清单 → resolver 滤已映射 → ruleSuggestCwds 规则初筛 → llmRefineCwds 语义精配
 // → SuggestionRow[]（供 SuggestionList 审核后 apply 写回 repos/新建项目）。
 // 输出由采集中心消费（CollectPage），本 hook 不依赖任何页面。
-//
-// TODO(P8): suggestionsDismissed 落 settings（models.ts 尚无该字段，不发明）——
-// 当前 dismiss 仅存本 hook 内部 useRef<Set>（会话级），组件卸载即失忆。
+// 忽略记忆（suggestionsDismissed）持久在 settings.collect，跨会话不再打扰。
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -101,8 +99,20 @@ export function useCwdSuggestions(): {
   const projects = useProjectsStore((s) => s.projects);
   const repos = useSettingsStore((s) => s.settings.repos);
   const llm = useSettingsStore((s) => s.settings.llm);
+  const dismissedSetting = useSettingsStore((s) => s.settings.collect.suggestionsDismissed ?? []);
 
-  const dismissed = useRef<Set<string>>(new Set());
+  const dismissed = useRef<Set<string>>(new Set(dismissedSetting));
+  useEffect(() => {
+    dismissed.current = new Set(dismissedSetting);
+  }, [dismissedSetting]);
+
+  /** 忽略持久化（settings.collect.suggestionsDismissed，跨会话不再打扰） */
+  const persistDismiss = useCallback((id: string) => {
+    const { settings, patch } = useSettingsStore.getState();
+    const cur = settings.collect.suggestionsDismissed ?? [];
+    if (cur.includes(id)) return;
+    void patch({ collect: { ...settings.collect, suggestionsDismissed: [...cur, id] } });
+  }, []);
   /** id → 用户手改的目标（跨 reload 保留，直连 SuggestionList.onTargetChange） */
   const targetOverrides = useRef<Map<string, string>>(new Map());
   /** id → 原始 Suggestion（apply 时取 new-project 建议名等原始信息） */
@@ -190,11 +200,12 @@ export function useCwdSuggestions(): {
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
-  /** 忽略单条：仅会话内（TODO(P8): suggestionsDismissed 落 settings） */
+  /** 忽略单条：本地即时生效 + 持久记忆（不再打扰） */
   const dismiss = useCallback((id: string) => {
     dismissed.current.add(id);
+    persistDismiss(id);
     setRows((prev) => prev.filter((r) => r.id !== id));
-  }, []);
+  }, [persistDismiss]);
 
   /** 行内改目标（直连 SuggestionList.onTargetChange；会话内跨 reload 保留） */
   const setTarget = useCallback((id: string, targetId: string) => {
@@ -218,6 +229,7 @@ export function useCwdSuggestions(): {
     for (const row of selected) {
       if (row.kind === 'ignore' || row.targetId === IGNORE_TARGET) {
         dismissed.current.add(row.id);
+        persistDismiss(row.id);
         continue;
       }
       const cwd =
@@ -244,7 +256,7 @@ export function useCwdSuggestions(): {
     }
     if (reposChanged) await patch({ repos: reposNext });
     setTick((t) => t + 1);
-  }, []);
+  }, [persistDismiss]);
 
   return { rows, loading, degraded, error, reload, dismiss, setTarget, apply };
 }

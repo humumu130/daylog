@@ -108,8 +108,13 @@ async function runPass(settings: AppSettings): Promise<CollectPassResult> {
   out.commits = commitInputs.length;
 
   // ⑤ 按日分组整合（同日同项目必进同一次 LLM 调用——引擎内分组保证）。
+  //    P8b 分桶路由：日内引擎输入再按归属项目空间分桶，每桶独立跑整合
+  //   （噪音指纹/日预算/已有记录互不跨空间污染；projectId null=未映射归 'work'）。
   //    LLM 未就绪→本轮跳过整合（事件不消费、水位线不提交，配好后自动补上）
   if (await llmReady(settings)) {
+    const { useWorkspaceStore } = await import('../../stores/useWorkspaceStore');
+    // 空间 id → 类型（projects 表无类型列，从 workspaces 映射；未加载/查不到默认 'work'）
+    const wsKindById = new Map(useWorkspaceStore.getState().workspaces.map((w) => [w.id, w.type]));
     const byDay = new Map<string, EngineInput[]>();
     for (const x of [...aiInputs, ...commitInputs]) {
       const arr = byDay.get(x.day);
@@ -118,16 +123,28 @@ async function runPass(settings: AppSettings): Promise<CollectPassResult> {
     }
     for (const [day, inputs] of byDay) {
       if (inputs.length === 0) continue;
-      const existing = await db.listRecordsByDay(day);
-      try {
-        out.days[day] = await runConsolidate(day, inputs, {
-          settings: settings.collect,
-          llm: settings.llm,
-          projects,
-          existingRecords: existing,
-        });
-      } catch {
-        // 单日失败不影响其它日；指纹未摄入→水位线不提交→下轮重解析重试
+      const byWs = new Map<string, EngineInput[]>();
+      for (const x of inputs) {
+        const ws = (x.projectId ? projects.find((p) => p.id === x.projectId)?.workspaceId : undefined) ?? db.DEFAULT_WORKSPACE_ID;
+        const arr = byWs.get(ws);
+        if (arr) arr.push(x);
+        else byWs.set(ws, [x]);
+      }
+      for (const [wsId, wsInputs] of byWs) {
+        const existing = await db.listRecordsByDay(day, wsId);
+        try {
+          const summary = await runConsolidate(day, wsInputs, {
+            settings: settings.collect,
+            llm: settings.llm,
+            projects,
+            existingRecords: existing,
+            workspaceId: wsId,
+            wsKind: wsKindById.get(wsId) === 'personal' ? 'personal' : 'work',
+          });
+          out.days[day] = mergeSummaries(out.days[day], summary);
+        } catch {
+          // 单日单空间失败不影响其它；指纹未摄入→水位线不提交→下轮重解析重试
+        }
       }
     }
   }
@@ -158,6 +175,18 @@ async function runPass(settings: AppSettings): Promise<CollectPassResult> {
   return out;
 }
 
+/** 同日多空间桶的 RunSummary 汇总（out.days 结构不变：day → 合并摘要） */
+function mergeSummaries(a: RunSummary | undefined, b: RunSummary): RunSummary {
+  if (!a) return b;
+  return {
+    created: a.created + b.created,
+    skippedExisting: a.skippedExisting + b.skippedExisting,
+    pending: a.pending + b.pending,
+    autoDropped: a.autoDropped + b.autoDropped,
+    degraded: a.degraded || b.degraded,
+  };
+}
+
 /** Git 提交 → 引擎输入（指纹幂等过滤；ts 从 ISO 时间戳来，无则 null） */
 async function commitsToInputs(commits: GitCommit[]): Promise<EngineInput[]> {
   const stamped = await Promise.all(
@@ -184,14 +213,24 @@ export async function manualScanNow(): Promise<CollectPassResult> {
   return collectOnce(() => useSettingsStore.getState().settings);
 }
 
-/** 用当前设置/项目/库状态重整合某日（今日页日菜单/采集中心噪音翻案后用） */
+/** 用当前设置/项目/库状态重整合某日（今日页日菜单/采集中心噪音翻案后用）。
+ *  P8b：按当前空间跑（existing 过滤与 prompt 口径同步带空间） */
 export async function rebuildDayNow(day: string): Promise<import('./types').RunSummary> {
   const { useSettingsStore } = await import('../../stores/useSettingsStore');
   const { useProjectsStore } = await import('../../stores/useProjectsStore');
+  const { useWorkspaceStore } = await import('../../stores/useWorkspaceStore');
+  const ws = useWorkspaceStore.getState();
   const s = useSettingsStore.getState().settings;
   const projects = useProjectsStore.getState().projects;
-  const existing = await db.listRecordsByDay(day);
-  return rebuildDay(day, { settings: s.collect, llm: s.llm, projects, existingRecords: existing });
+  const existing = await db.listRecordsByDay(day, ws.currentId);
+  return rebuildDay(day, {
+    settings: s.collect,
+    llm: s.llm,
+    projects,
+    existingRecords: existing,
+    workspaceId: ws.currentId,
+    wsKind: ws.currentKind(),
+  });
 }
 
 /** 供引擎 inputSig 等场景复用 */

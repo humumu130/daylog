@@ -3,10 +3,12 @@ import { Button, IconButton, Segmented } from '../../ui';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useWorkspaceStore } from '../../stores/useWorkspaceStore';
 import { ReportSection } from '../components/ReportSection';
+import { RetroCard, isoWeekKey, mondayOfYMD, weekLabelOf } from '../components/RetroCard';
 import type { ReportTemplate } from '../../types/models';
 import * as db from '../../services/db';
-import { currentYM, todayYMD } from '../../utils/date';
+import { addDays, currentYM, monthRange, todayYMD } from '../../utils/date';
 
 type Kind = 'month' | 'quarter' | 'halfyear' | 'year';
 
@@ -16,8 +18,90 @@ function quarterOf(ym: string): number {
   return Math.ceil(Number(ym.slice(5, 7)) / 3);
 }
 
-/** 报告页（/reports）：期选择器（月/季/半年/年）+ 单 ReportSection（起止日期可自定义，如 26 号→次月 25 号） */
+function shiftYM(ym: string, delta: number): string {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * 报告页（/reports）。P8b 空间分流：
+ * - work：期选择器（月/季/半年/年）+ 单 ReportSection（原样零回归）
+ * - personal：复盘视图——周/月切换 + RetroCard（实时聚合 / AI 复盘 / 快照 / Obsidian 导出）
+ */
 export function ReportsPage() {
+  const wsKind = useWorkspaceStore((s) => s.currentKind());
+  if (wsKind === 'personal') return <RetroView />;
+  return <WorkReportsView />;
+}
+
+/** personal：复盘视图（周/月切换 + 期间导航 + RetroCard） */
+function RetroView() {
+  const wsId = useWorkspaceStore((s) => s.currentId);
+  const [kind, setKind] = useState<'week' | 'month'>('week');
+  // 周以周一锚定（ISO），月以 YYYY-MM；导航互不干扰
+  const [weekMonday, setWeekMonday] = useState(() => mondayOfYMD(todayYMD()));
+  const [ym, setYm] = useState(currentYM());
+
+  const target = useMemo(() => {
+    if (kind === 'week') {
+      return { period: isoWeekKey(weekMonday), from: weekMonday, to: addDays(weekMonday, 6), title: weekLabelOf(weekMonday) };
+    }
+    const { from, to } = monthRange(ym);
+    return { period: ym, from, to, title: `${ym} 月复盘` };
+  }, [kind, weekMonday, ym]);
+
+  return (
+    <div>
+      <div className="page-head" style={{ marginBottom: 10 }}>
+        <div className="left">
+          <h2 className="section-title">复盘</h2>
+          <span className="muted">按周/月聚合回看 · AI 复盘快照 · 可导出 Obsidian</span>
+        </div>
+      </div>
+
+      <div className="rpt-toolbar">
+        <Segmented
+          value={kind}
+          onChange={(k) => setKind(k)}
+          options={[
+            { value: 'week', label: '周复盘' },
+            { value: 'month', label: '月复盘' },
+          ]}
+        />
+        <span className="rpt-picker row gap-sm">
+          {kind === 'week' ? (
+            <>
+              <IconButton title="上一周" onClick={() => setWeekMonday((m) => addDays(m, -7))}><ArrowLeft size={16} /></IconButton>
+              <span className="rpt-ym">{weekLabelOf(weekMonday)}</span>
+              <IconButton title="下一周" onClick={() => setWeekMonday((m) => addDays(m, 7))}><ArrowRight size={16} /></IconButton>
+              <Button size="sm" onClick={() => setWeekMonday(mondayOfYMD(todayYMD()))}>本周</Button>
+            </>
+          ) : (
+            <>
+              <IconButton title="上一月" onClick={() => setYm((v) => shiftYM(v, -1))}><ArrowLeft size={16} /></IconButton>
+              <span className="rpt-ym num">{ym}</span>
+              <IconButton title="下一月" onClick={() => setYm((v) => shiftYM(v, 1))}><ArrowRight size={16} /></IconButton>
+              <Button size="sm" onClick={() => setYm(currentYM())}>本月</Button>
+            </>
+          )}
+        </span>
+      </div>
+
+      <RetroCard
+        key={`${kind}:${target.period}`}
+        kind={kind}
+        period={target.period}
+        from={target.from}
+        to={target.to}
+        wsId={wsId}
+      />
+    </div>
+  );
+}
+
+/** work：期选择器（月/季/半年/年）+ 单 ReportSection（起止日期可自定义，如 26 号→次月 25 号）——原路径 */
+function WorkReportsView() {
   const [kind, setKind] = useState<Kind>('month');
   const [ym, setYm] = useState(currentYM());
   const [year, setYear] = useState<string>(currentYM().slice(0, 4));
@@ -119,10 +203,4 @@ export function ReportsPage() {
       />
     </div>
   );
-}
-
-function shiftYM(ym: string, delta: number): string {
-  const [y, m] = ym.split('-').map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }

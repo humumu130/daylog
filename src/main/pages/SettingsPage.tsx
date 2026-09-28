@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button, Input, Segmented, Switch } from '../../ui';
-import { Plus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Badge, Button, Dialog, Input, Segmented, Switch } from '../../ui';
+import { Briefcase, Plus, ChevronDown, ChevronRight, Pencil, Sprout, Trash2 } from 'lucide-react';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useWorkspaceStore } from '../../stores/useWorkspaceStore';
 import { setAutostart } from '../../services/autostart';
 import { HotkeyField } from '../components/HotkeyField';
 import { Select } from '../components/Select';
@@ -10,7 +12,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HelpTip } from '../components/HelpTip';
 import { SuggestionList, type SuggestionRow } from '../components/SuggestionList';
 import { setReportPolicy } from '../components/ChoerodonBatchModal';
-import type { AppSettings, ChoerodonSettings, GitRepo, LlmConfig, ReportTemplate } from '../../types/models';
+import type { AppSettings, ChoerodonSettings, GitRepo, LlmConfig, ReportTemplate, WorkspaceKind } from '../../types/models';
 import * as db from '../../services/db';
 import { generateReport } from '../../services/llm';
 import {
@@ -34,11 +36,12 @@ import { defaultScanRoots } from '../../services/collector';
 import { addDays } from '../../utils/date';
 import './settings-ia.css';
 
-/** 设置页二级导航分区键（P4 信息架构重排：左导航 + 右分区条件渲染） */
-type SetPaneKey = 'general' | 'llm' | 'collect' | 'backup' | 'choerodon' | 'projects' | 'templates';
+/** 设置页二级导航分区键（P4 信息架构重排：左导航 + 右分区条件渲染；P8b 加「空间」） */
+type SetPaneKey = 'general' | 'workspaces' | 'llm' | 'collect' | 'backup' | 'choerodon' | 'projects' | 'templates';
 
 const SET_PANES: { key: SetPaneKey; label: string }[] = [
   { key: 'general', label: '通用' },
+  { key: 'workspaces', label: '空间' },
   { key: 'llm', label: 'LLM' },
   { key: 'collect', label: '采集' },
   { key: 'backup', label: '备份' },
@@ -54,6 +57,8 @@ export function SettingsPage() {
   const createProject = useProjectsStore((s) => s.create);
   const updateProject = useProjectsStore((s) => s.update);
   const removeProject = useProjectsStore((s) => s.remove);
+  // 当前空间类型（P8b 模块矩阵）：personal 空间隐藏工时/上报相关分区与行
+  const wsKind = useWorkspaceStore((s) => s.current()?.type ?? 'work');
 
   const [notice, setNotice] = useState('');
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
@@ -64,6 +69,23 @@ export function SettingsPage() {
 
   // 二级导航：当前设置分区（右侧按此条件渲染）
   const [pane, setPane] = useState<SetPaneKey>('general');
+
+  // 深链分区（首启向导「去设置 →」）：/settings?pane=<key> 直达对应分区
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const p = searchParams.get('pane');
+    if (p && SET_PANES.some((x) => x.key === p)) setPane(p as SetPaneKey);
+  }, [searchParams]);
+
+  // 分区导航按空间类型过滤：personal 空间隐藏「猪齿鱼」分区（无上报语义）
+  const panes = useMemo(
+    () => (wsKind === 'personal' ? SET_PANES.filter((p) => p.key !== 'choerodon') : SET_PANES),
+    [wsKind],
+  );
+  // 当前分区被空间类型隐藏时回落通用（切换空间后不留死角）
+  useEffect(() => {
+    if (wsKind === 'personal' && pane === 'choerodon') setPane('general');
+  }, [wsKind, pane]);
 
   // 展开/折叠
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -160,7 +182,7 @@ export function SettingsPage() {
       {/* 左侧二级导航 + 右侧分区（P4 信息架构重排） */}
       <div className="set-layout">
         <nav className="set-nav" aria-label="设置分区">
-          {SET_PANES.map((p) => (
+          {panes.map((p) => (
             <button
               key={p.key}
               type="button"
@@ -200,62 +222,70 @@ export function SettingsPage() {
               <div className="set-row"><div className="set-label"><span>开机自启</span></div>
                 <Switch checked={settings.autostart} onChange={(c) => void toggleAutostart(c)} />
               </div>
-              <div className="set-row">
-                <div className="set-label"><span>下班提醒<HelpTip text="到点若今日记录不足，桌面通知提醒补记；留空关闭" /></span></div>
-                <div className="row gap-sm">
-                  <input
-                    type="time"
-                    className="sel"
-                    value={settings.remindTime}
-                    onChange={(e) => void patch({ remindTime: e.target.value })}
-                    style={{ width: 92 }}
-                  />
-                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>不足</span>
-                  <input
-                    type="number"
-                    className="sel"
-                    min={1}
-                    max={16}
-                    value={Math.round(settings.remindMinMinutes / 60)}
-                    onChange={(e) => void patch({ remindMinMinutes: Math.max(1, Number(e.target.value) || 8) * 60 })}
-                    style={{ width: 56 }}
-                  />
-                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时提醒</span>
-                </div>
-              </div>
-              <div className="set-row">
-                <div className="set-label"><span>单日工时上限<HelpTip text="Git 区间分配时遵守；超出会标为加班" /></span></div>
-                <div className="row gap-sm">
-                  <input
-                    type="number"
-                    className="sel"
-                    min={1}
-                    max={16}
-                    value={settings.dailyCapHours}
-                    onChange={(e) => void patch({ dailyCapHours: Math.max(1, Number(e.target.value) || 8) })}
-                    style={{ width: 64 }}
-                  />
-                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时/天</span>
-                </div>
-              </div>
-              <div className="set-row">
-                <div className="set-label">
-                  <span>填报策略</span>
-                  <span className="subtle">本地日志永远如实；策略只影响上报向导与导出的时长口径</span>
-                </div>
-                <Segmented
-                  aria-label="填报策略"
-                  size="sm"
-                  options={[
-                    { value: 'fact', label: '如实逐条' },
-                    { value: 'fill', label: '按目标补齐' },
-                  ]}
-                  value={settings.reportPolicy}
-                  onChange={(v) => void setReportPolicy(v)}
-                />
-              </div>
+              {/* P8b 模块矩阵：个人空间无工时语义——下班提醒/单日上限/填报策略三行隐藏 */}
+              {wsKind === 'work' && (
+                <>
+                  <div className="set-row">
+                    <div className="set-label"><span>下班提醒<HelpTip text="到点若今日记录不足，桌面通知提醒补记；留空关闭" /></span></div>
+                    <div className="row gap-sm">
+                      <input
+                        type="time"
+                        className="sel"
+                        value={settings.remindTime}
+                        onChange={(e) => void patch({ remindTime: e.target.value })}
+                        style={{ width: 92 }}
+                      />
+                      <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>不足</span>
+                      <input
+                        type="number"
+                        className="sel"
+                        min={1}
+                        max={16}
+                        value={Math.round(settings.remindMinMinutes / 60)}
+                        onChange={(e) => void patch({ remindMinMinutes: Math.max(1, Number(e.target.value) || 8) * 60 })}
+                        style={{ width: 56 }}
+                      />
+                      <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时提醒</span>
+                    </div>
+                  </div>
+                  <div className="set-row">
+                    <div className="set-label"><span>单日工时上限<HelpTip text="Git 区间分配时遵守；超出会标为加班" /></span></div>
+                    <div className="row gap-sm">
+                      <input
+                        type="number"
+                        className="sel"
+                        min={1}
+                        max={16}
+                        value={settings.dailyCapHours}
+                        onChange={(e) => void patch({ dailyCapHours: Math.max(1, Number(e.target.value) || 8) })}
+                        style={{ width: 64 }}
+                      />
+                      <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>小时/天</span>
+                    </div>
+                  </div>
+                  <div className="set-row">
+                    <div className="set-label">
+                      <span>填报策略</span>
+                      <span className="subtle">本地日志永远如实；策略只影响上报向导与导出的时长口径</span>
+                    </div>
+                    <Segmented
+                      aria-label="填报策略"
+                      size="sm"
+                      options={[
+                        { value: 'fact', label: '如实逐条' },
+                        { value: 'fill', label: '按目标补齐' },
+                      ]}
+                      value={settings.reportPolicy}
+                      onChange={(v) => void setReportPolicy(v)}
+                    />
+                  </div>
+                </>
+              )}
             </section>
           )}
+
+          {/* 空间（P8b）：空间卡片管理 + 新建 + Obsidian 导出目录 */}
+          {pane === 'workspaces' && <WorkspaceSection flash={flash} setConfirm={setConfirm} />}
 
           {/* LLM */}
           {pane === 'llm' && (
@@ -445,8 +475,8 @@ export function SettingsPage() {
             </section>
           )}
 
-          {/* 猪齿鱼对接（公司专属，不进开源） */}
-          {pane === 'choerodon' && (
+          {/* 猪齿鱼对接（公司专属，不进开源）；P8b：personal 空间隐藏（分区导航已过滤，此处双保险） */}
+          {pane === 'choerodon' && wsKind === 'work' && (
             <ChoerodonSection settings={settings} patch={patch} flash={flash} />
           )}
 
@@ -620,6 +650,162 @@ export function SettingsPage() {
         onConfirm={() => { confirm?.onConfirm(); setConfirm(null); }}
       />
     </div>
+  );
+}
+
+/** 空间分区（P8b）：空间卡片（重命名/归档/默认/删除）+ 新建空间 + Obsidian 导出目录 */
+function WorkspaceSection({ flash, setConfirm }: {
+  flash: (m: string) => void;
+  setConfirm: Dispatch<SetStateAction<{ title: string; message: string; onConfirm: () => void } | null>>;
+}) {
+  const settings = useSettingsStore((s) => s.settings);
+  const patch = useSettingsStore((s) => s.patch);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const currentId = useWorkspaceStore((s) => s.currentId);
+  const create = useWorkspaceStore((s) => s.create);
+  const rename = useWorkspaceStore((s) => s.rename);
+  const archive = useWorkspaceStore((s) => s.archive);
+  const setDefault = useWorkspaceStore((s) => s.setDefault);
+  const remove = useWorkspaceStore((s) => s.remove);
+
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<WorkspaceKind>('work');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+
+  async function addWorkspace() {
+    const name = newName.trim();
+    if (!name) return;
+    try {
+      await create({ name, type: newType });
+      flash(`已创建空间「${name}」`);
+      setNewOpen(false);
+      setNewName('');
+      setNewType('work');
+    } catch (e) {
+      flash(`创建失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function saveRename() {
+    if (!editId) return;
+    const name = editName.trim();
+    const w = workspaces.find((x) => x.id === editId);
+    setEditId(null);
+    if (!w || !name || name === w.name) return;
+    try {
+      await rename(editId, name);
+      flash('已重命名空间');
+    } catch (e) {
+      flash(`重命名失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function doRemove(id: string, name: string) {
+    try {
+      await remove(id); // db 层对非空空间抛错（记录/项目/任务任一非空即拒绝）
+      flash(`已删除空间「${name}」`);
+    } catch (e) {
+      flash(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <section className="card set-section">
+      <h3 className="set-h">空间 <HelpTip text="工作空间（工时/上报/额度）与个人空间（成长记录/复盘，无上报）数据隔离；类型决定模块显隐" /></h3>
+      <div className="ws-list">
+        {workspaces.map((w) => (
+          <div key={w.id} className={`ws-card${w.id === currentId ? ' current' : ''}${w.archived ? ' archived' : ''}`}>
+            {editId === w.id ? (
+              <div className="row gap-sm ws-edit">
+                <Input
+                  value={editName}
+                  autoFocus
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void saveRename(); }}
+                  placeholder="空间名"
+                  className="grow"
+                />
+                <Button size="sm" variant="primary" onClick={() => void saveRename()}>保存</Button>
+                <Button size="sm" onClick={() => setEditId(null)}>取消</Button>
+              </div>
+            ) : (
+              <>
+                <span className="ws-card-ico" aria-hidden="true">
+                  {w.type === 'work' ? <Briefcase size={16} /> : <Sprout size={16} />}
+                </span>
+                <span className="ws-card-name">{w.name}</span>
+                <span className={`ws-kind${w.type === 'personal' ? ' personal' : ''}`}>{w.type === 'work' ? '工作' : '个人'}</span>
+                {w.isDefault && <Badge tone="neutral">默认</Badge>}
+                {w.archived && <Badge tone="warning">已归档</Badge>}
+                {w.id === currentId && <Badge tone="accent">当前</Badge>}
+                <span className="ws-card-actions">
+                  <button className="icon-btn" title="重命名" onClick={() => { setEditId(w.id); setEditName(w.name); }}><Pencil size={16} /></button>
+                  <Button size="sm" disabled={w.isDefault} onClick={() => { void setDefault(w.id).then(() => flash('已设为默认空间')); }}>设为默认</Button>
+                  <label className="ws-arch" title="归档后不再出现在切换器，数据保留">
+                    归档
+                    <Switch checked={w.archived} onChange={(c) => { void archive(w.id, c).then(() => flash(c ? '已归档' : '已恢复')); }} />
+                  </label>
+                  <button
+                    className="icon-btn"
+                    title={w.id === db.DEFAULT_WORKSPACE_ID ? '种子空间不可删除' : '删除（仅限空空间）'}
+                    disabled={w.id === db.DEFAULT_WORKSPACE_ID}
+                    onClick={() => setConfirm({
+                      title: `删除空间「${w.name}」？`,
+                      message: '仅允许删除空空间（无记录/项目/任务）。此操作不可恢复，确定删除？',
+                      onConfirm: () => { void doRemove(w.id, w.name); },
+                    })}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      <Button size="sm" icon={<Plus size={14} />} onClick={() => setNewOpen(true)} style={{ marginTop: 10 }}>新建空间</Button>
+
+      <div className="set-row" style={{ marginTop: 16 }}>
+        <div className="set-label">
+          <span>Obsidian 库目录<HelpTip text="配置后个人空间每日记录导出到该库的 record/ 子目录" /></span>
+          <span className="subtle">个人空间每日记录导出到 {settings.obsidianDir ? `${settings.obsidianDir}/record/` : '<目录>/record/'}</span>
+        </div>
+        <Input value={settings.obsidianDir} onChange={(e) => void patch({ obsidianDir: e.target.value })} placeholder="如 /Users/xxx/Documents/MyVault" className="grow" style={{ maxWidth: 320 }} />
+      </div>
+
+      <Dialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        title="新建空间"
+        width={420}
+      >
+        <div className="set-row">
+          <div className="set-label"><span>名称</span></div>
+          <Input value={newName} autoFocus onChange={(e) => setNewName(e.target.value)} placeholder="如 客户A / 个人成长" className="grow" />
+        </div>
+        <div className="set-row">
+          <div className="set-label">
+            <span>类型<HelpTip text="枚举锁死两值：work=工时/上报/额度；personal=成长记录/复盘，无工时填报与上报" /></span>
+          </div>
+          <Segmented
+            aria-label="空间类型"
+            size="sm"
+            options={[
+              { value: 'work', label: '工作' },
+              { value: 'personal', label: '个人' },
+            ]}
+            value={newType}
+            onChange={(v) => setNewType(v)}
+          />
+        </div>
+        <div className="row gap-sm" style={{ justifyContent: 'flex-end' }}>
+          <Button size="sm" onClick={() => setNewOpen(false)}>取消</Button>
+          <Button size="sm" variant="primary" disabled={!newName.trim()} onClick={() => void addWorkspace()}>创建</Button>
+        </div>
+      </Dialog>
+    </section>
   );
 }
 

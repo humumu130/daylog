@@ -19,10 +19,11 @@ import {
   type ReporterCtx,
 } from '../../services/reporters';
 import { applyProjectMap } from '../../services/choerodonMap';
-import { insertSyncLog, isRecordSynced, listSyncLogDays } from '../../services/db';
+import { insertSyncLog, isRecordSynced, listSyncLogDays, DEFAULT_WORKSPACE_ID } from '../../services/db';
 import { useProjectsStore } from '../../stores/useProjectsStore';
 import { useRecordsStore } from '../../stores/useRecordsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useWorkspaceStore } from '../../stores/useWorkspaceStore';
 import { addDays, parseYMD, todayYMD, weekdayCN } from '../../utils/date';
 import './choerodon-wizard.css';
 
@@ -174,6 +175,16 @@ export function ChoerodonBatchModal({ open, onClose }: Props) {
   const dailyCapHours = useSettingsStore((s) => s.settings.dailyCapHours);
   const overtimeCapHours = useSettingsStore((s) => s.settings.collect.overtimeCapHours);
   const choerodon = useSettingsStore((s) => s.settings.choerodon);
+  const wsWorkspaces = useWorkspaceStore((s) => s.workspaces);
+
+  // 上报只取 work 型空间记录（P8b 模块矩阵）：守卫已保证当前是 work 空间；
+  // 集合匹配所有 work 型空间（默认 work 空间优先语义由「当前空间」承担，多个
+  // work 空间各自的记录都在各自会话里上报），个人空间记录任何情况不进上报
+  const workWsIds = useMemo(() => {
+    const set = new Set(wsWorkspaces.filter((w) => w.type === 'work').map((w) => w.id));
+    if (set.size === 0) set.add(DEFAULT_WORKSPACE_ID); // 兜底：无 work 空间时防全空（守卫下不可达）
+    return set;
+  }, [wsWorkspaces]);
 
   const [phase, setPhase] = useState<Phase>('gate');
   const [gate, setGate] = useState<Gate>('checking');
@@ -215,10 +226,16 @@ export function ChoerodonBatchModal({ open, onClose }: Props) {
   const today = todayYMD();
   const activeProjects = useMemo(() => projects.filter((p) => p.isActive), [projects]);
 
-  // 窗口内记录（store 区间可能滞后于向导窗口，先过滤防闪旧数据）
+  // 防线（响应式）：向导打开期间被切到 personal 空间（⌘⇧W 全局热键）→ 立即关闭
+  const wsKind = useWorkspaceStore((s) => s.current()?.type ?? 'work');
+  useEffect(() => {
+    if (open && wsKind !== 'work') onClose();
+  }, [open, wsKind, onClose]);
+
+  // 窗口内记录（store 区间可能滞后于向导窗口，先过滤防闪旧数据；只取 work 型空间——个人空间记录不参与上报）
   const windowRecords = useMemo(
-    () => storeRecords.filter((r) => r.day >= from && r.day <= to),
-    [storeRecords, from, to],
+    () => storeRecords.filter((r) => r.day >= from && r.day <= to && workWsIds.has(r.workspaceId)),
+    [storeRecords, from, to, workWsIds],
   );
   const rangeStale = phase === 'step2' && (storeFrom !== from || storeTo !== to);
 
@@ -231,6 +248,12 @@ export function ChoerodonBatchModal({ open, onClose }: Props) {
   // ---- 打开：装配 ctx + testConnection + listProjects，失败给出明确引导 ----
   useEffect(() => {
     if (!open) return;
+    // 模块矩阵防线（P8b）：personal 空间不可进入上报流程——即使入口漏守卫
+    // （事件被直接 dispatch / 状态被误置），这里也直接关闭，不发起任何连接与上报
+    if (useWorkspaceStore.getState().currentKind() !== 'work') {
+      onClose();
+      return;
+    }
     // 重置（上次会话状态不带入）
     setPhase('gate'); setGate('checking'); setGateError(''); setCtx(null); setRemoteProjects([]);
     setMapping({}); setIssueChoice({}); setIssues({}); setIssueLoading(new Set());
@@ -519,9 +542,11 @@ export function ChoerodonBatchModal({ open, onClose }: Props) {
         }
       }
 
-      // 记录 + 对账数据
+      // 记录 + 对账数据（只取 work 型空间记录：个人空间不参与上报对账）
       await setRange(from, to);
-      const recs = useRecordsStore.getState().records.filter((r) => r.day >= from && r.day <= to);
+      const recs = useRecordsStore
+        .getState()
+        .records.filter((r) => r.day >= from && r.day <= to && workWsIds.has(r.workspaceId));
       const [sd, synced] = await Promise.all([
         listSyncLogDays(from, to),
         Promise.all(recs.map((r) => isRecordSynced(r.id))),

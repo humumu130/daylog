@@ -48,29 +48,33 @@ function parseSnapshot(text: string): TodoItem[] {
 /**
  * 摄入一批 todo 事件（按 ts 升序应用：快照/更新按时间覆盖）。
  * 事件需为 kind==='todo_tool'；projectId 由事件 cwd 归组。
+ * P8b：createTask 落条目归组项目的空间（projects 表查），无项目归 'work'。
  */
-export async function ingestTodos(events: AiEvent[], resolver: ProjectResolver, _projects: Project[]): Promise<TodoIngestResult> {
+export async function ingestTodos(events: AiEvent[], resolver: ProjectResolver, projects: Project[]): Promise<TodoIngestResult> {
   const res: TodoIngestResult = { created: 0, updated: 0, skipped: 0 };
   const sorted = [...events].filter((e) => e.kind === 'todo_tool').sort((a, b) => a.ts - b.ts);
   // 处理完统一标记摄入（含跳过项：决策已做出，防每轮重放）；摄入后水位线才可提交
   const consumed: { fingerprint: string; provider: string; day: string; kind: string; payload: unknown }[] = [];
+  // 项目 id → 所属空间（task 空间跟项目走；查不到兜底 'work'）
+  const wsOfProject = new Map(projects.map((p) => [p.id, p.workspaceId ?? db.DEFAULT_WORKSPACE_ID]));
 
   for (const ev of sorted) {
     const project = resolver.resolve(ev.cwd);
     const projectId = project?.id ?? null;
+    const wsId = (projectId ? wsOfProject.get(projectId) : undefined) ?? db.DEFAULT_WORKSPACE_ID;
 
     if (ev.todo?.action === 'write') {
       // TodoWrite：末次快照为终态——逐项 upsert
       const items = parseSnapshot(ev.text);
       if (items.length === 0) { res.skipped++; continue; }
-      for (const item of items) await upsert(ev.provider, item, projectId, ev.day, res);
+      for (const item of items) await upsert(ev.provider, item, projectId, wsId, ev.day, res);
       continue;
     }
 
     const subject = ev.todo?.subject ?? '';
     if (!subject) { res.skipped++; continue; }
     if (ev.todo?.action === 'create') {
-      await upsert(ev.provider, { subject, status: 'pending' }, projectId, ev.day, res);
+      await upsert(ev.provider, { subject, status: 'pending' }, projectId, wsId, ev.day, res);
     } else if (ev.todo?.action === 'update') {
       // TaskUpdate：按归一化 subject 定位（有 status 才有意义）
       const key = await externalKey(ev.provider, subject, projectId);
@@ -99,7 +103,7 @@ export async function ingestTodos(events: AiEvent[], resolver: ProjectResolver, 
   return res;
 }
 
-async function upsert(provider: string, item: TodoItem, projectId: string | null, day: string, res: TodoIngestResult): Promise<void> {
+async function upsert(provider: string, item: TodoItem, projectId: string | null, wsId: string, day: string, res: TodoIngestResult): Promise<void> {
   const key = await externalKey(provider, item.subject, projectId);
   const existing = await db.findTaskByExternalKey(key);
   const status = mapStatus(item.status);
@@ -113,6 +117,7 @@ async function upsert(provider: string, item: TodoItem, projectId: string | null
       note: '',
       source: 'ai',
       externalKey: key,
+      workspaceId: wsId,
     });
     res.created++;
     return;

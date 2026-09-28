@@ -3,6 +3,10 @@ import * as db from '../services/db';
 import type { Project, WorkRecord } from '../types/models';
 import { todayYMD } from '../utils/date';
 import { matchProjectForContent } from '../utils/parseEntry';
+import { useWorkspaceStore } from './useWorkspaceStore';
+
+/** 当前空间 id（查询过滤与缺省写入共用；useWorkspaceStore 无反向依赖，无环） */
+const curWsId = (): string => useWorkspaceStore.getState().currentId;
 
 interface RecordsState {
   records: WorkRecord[];
@@ -32,14 +36,14 @@ export const useRecordsStore = create<RecordsState>()((set, get) => ({
     const { from, to } = get();
     set({ loading: true });
     try {
-      const records = await db.listRecordsByRange(from, to);
+      const records = await db.listRecordsByRange(from, to, curWsId());
       set({ records });
     } finally {
       set({ loading: false });
     }
   },
   create: async (input) => {
-    const id = await db.createRecord(input);
+    const id = await db.createRecord({ ...input, workspaceId: input.workspaceId ?? curWsId() });
     await get().fetch();
     return id;
   },
@@ -52,7 +56,7 @@ export const useRecordsStore = create<RecordsState>()((set, get) => ({
     await get().fetch();
   },
   rematchProjects: async (projects) => {
-    const all = await db.listRecordsByRange('2000-01-01', '2999-12-31');
+    const all = await db.listRecordsByRange('2000-01-01', '2999-12-31', curWsId());
     let changed = 0;
     for (const r of all) {
       if (r.projectId) continue;
@@ -67,6 +71,11 @@ export const useRecordsStore = create<RecordsState>()((set, get) => ({
           projectId: p.id,
           source: r.source,
           meta: r.meta,
+          // 保个人空间字段（recordType/learnings/tags）：重匹配只改项目归属，不重置其余维度
+          workspaceId: r.workspaceId,
+          recordType: r.recordType,
+          learnings: r.learnings,
+          tags: r.tags,
         });
         changed++;
       }
