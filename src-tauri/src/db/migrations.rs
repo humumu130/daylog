@@ -233,16 +233,126 @@ pub fn migrations() -> Vec<Migration> {
             kind: MigrationKind::Up,
         },
         Migration {
+            // 注意：v29 已建 workspaces（旧结构无 archived），本条 IF NOT EXISTS 在新库/旧库上
+            // 均恒被跳过（v29 先行），实际结构对齐由 v40 补列完成。保留作历史记录不删。
             version: 39,
             description: "create_workspaces",
             sql: "CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL CHECK(type IN ('work','personal')), is_default INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)",
             kind: MigrationKind::Up,
         },
         Migration {
+            // v29 旧结构缺 archived 列（v39 因 IF NOT EXISTS 被跳过未能对齐），此处补列。
+            // 原版 v40 是 INSERT 种子，因引用缺失列从未在任何库上成功应用过，改写安全。
             version: 40,
+            description: "workspaces_add_archived",
+            sql: "ALTER TABLE workspaces ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 41,
             description: "seed_default_workspace",
             sql: "INSERT OR IGNORE INTO workspaces (id, name, type, is_default, archived, created_at) VALUES ('work', '工作', 'work', 1, 0, 0)",
             kind: MigrationKind::Up,
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 全量迁移重放（空库 → 终态断言）：2026-09-30 冒烟暴露 v29/v39 双建表冲突
+    /// （v39 IF NOT EXISTS 恒被跳过、v40 引用缺失列失败中断），此测试防同类回归。
+    /// 用 sqlite3 CLI 逐条执行（每条迁移恰好单语句），任何一条失败即整体失败。
+    #[test]
+    fn migrations_replay_clean_db() {
+        let db = std::env::temp_dir().join("daylog-mig-replay-test.db");
+        let _ = std::fs::remove_file(&db);
+        for m in migrations() {
+            let out = std::process::Command::new("sqlite3")
+                .arg(&db)
+                .arg(&m.sql)
+                .output()
+                .expect("sqlite3 应可用");
+            assert!(
+                out.status.success(),
+                "迁移 v{} ({}) 失败：{}",
+                m.version,
+                m.description,
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+        let q = |sql: &str| -> String {
+            let out = std::process::Command::new("sqlite3")
+                .arg(&db)
+                .arg(sql)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "查询失败：{sql}");
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        // workspaces 终态：archived 列存在 + 种子行就位（v29 旧结构 + v40 补列 + v41 种子）
+        let cols = q("SELECT group_concat(name) FROM pragma_table_info('workspaces')");
+        assert!(cols.contains("archived"), "workspaces 缺 archived 列：{cols}");
+        let seed = q("SELECT type || ',' || is_default || ',' || archived FROM workspaces WHERE id='work'");
+        assert_eq!(seed, "work,1,0", "默认工作空间种子行不符：{seed}");
+        // 关键业务表齐备
+        for t in [
+            "records", "projects", "tasks", "workspaces", "collector_state",
+            "ingested_events", "noise_reviews", "consolidate_runs",
+            "choerodon_sync_log", "retrospectives", "settings",
+        ] {
+            assert_eq!(q(&format!("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='{t}'")), "1", "缺表 {t}");
+        }
+        let _ = std::fs::remove_file(&db);
+    }
+
+    /// 旧库升级路径：模拟「已应用到 v38 的存量库」（v29 建的旧 workspaces 无 archived），
+    /// 断言 v39-v41 补齐结构不炸——存量用户升级零迁移错误。
+    #[test]
+    fn migrations_upgrade_from_v38() {
+        let db = std::env::temp_dir().join("daylog-mig-upgrade-test.db");
+        let _ = std::fs::remove_file(&db);
+        for m in migrations().into_iter().filter(|m| m.version <= 38) {
+            let out = std::process::Command::new("sqlite3")
+                .arg(&db)
+                .arg(&m.sql)
+                .output()
+                .expect("sqlite3 应可用");
+            assert!(out.status.success(), "v{} 失败：{}", m.version, String::from_utf8_lossy(&out.stderr));
+        }
+        // 存量库上已有同名「work」行（如旧版前端兜底建的），升级段仍须成功
+        std::process::Command::new("sqlite3")
+            .arg(&db)
+            .arg("INSERT INTO workspaces (id, name, type, is_default, created_at) VALUES ('work', '旧工作', 'work', 1, 100)")
+            .output()
+            .unwrap();
+        for m in migrations().into_iter().filter(|m| m.version > 38) {
+            let out = std::process::Command::new("sqlite3")
+                .arg(&db)
+                .arg(&m.sql)
+                .output()
+                .expect("sqlite3 应可用");
+            assert!(
+                out.status.success(),
+                "升级迁移 v{} ({}) 失败：{}",
+                m.version,
+                m.description,
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+        let q = |sql: &str| -> String {
+            let out = std::process::Command::new("sqlite3").arg(&db).arg(sql).output().unwrap();
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        let cols = q("SELECT group_concat(name) FROM pragma_table_info('workspaces')");
+        assert!(cols.contains("archived"), "升级后仍缺 archived：{cols}");
+        // 存量行保留（OR IGNORE 不覆盖）且补上 archived 默认值
+        assert_eq!(
+            q("SELECT name || ',' || archived FROM workspaces WHERE id='work'"),
+            "旧工作,0",
+            "存量行应原样保留并带 archived=0"
+        );
+        let _ = std::fs::remove_file(&db);
+    }
 }
