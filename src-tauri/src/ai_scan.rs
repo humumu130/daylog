@@ -278,15 +278,20 @@ fn todo_tool_events(v: &Value, ts: i64) -> Vec<AiEvent> {
 /// Codex rollout 行解析（~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl，cli 0.92 实测布局）：
 /// 行结构 {timestamp, type, payload}；cwd 无逐行字段，由 session_meta/turn_context 的 payload.cwd 维护
 /// （turn_context 每轮出现，后写覆盖）。schema 跨版本漂移——全程容错，未知子类型静默忽略。
-/// event_msg(payload.type=user_message)=干净人类输入；response_item(payload.type=message) 中
-/// role=user 是 harness 注入噪音（环境上下文等）跳过，仅 assistant 取 content[] 的 output_text。
-/// 无 gitBranch。
+/// 人类输入双通道去重（2026-09-30 真实样本确证）：event_msg(user_message) 为官方「干净人类输入」
+/// 主通道；response_item(message, role=user) 的 input_text 在 exec 模式（originator=codex_exec）
+/// 是唯一输入来源（无 user_message 行），在交互模式与 user_message 内容重复——走 pending 缓冲，
+/// 被 user_message 同文本覆盖的丢弃，文件尾仍未覆盖的 flush 收录（exec 兜底）。注入噪音按
+/// 前缀过滤（environment_context/AGENTS.md 等 harness 注入，实测形态）。assistant 取 content[]
+/// 的 output_text。无 gitBranch。
 fn codex_handle_line(
     v: &Value,
     ts: i64,
     cwd_state: &mut String,
     events: &mut Vec<AiEvent>,
     assistant_buf: &mut Vec<AiEvent>,
+    user_pending: &mut Vec<(String, AiEvent)>,
+    user_seen: &mut HashSet<String>,
 ) {
     let payload = v.get("payload").cloned().unwrap_or(Value::Null);
     match v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
@@ -307,6 +312,10 @@ fn codex_handle_line(
                 .or_else(|| payload.get("text").and_then(|t| t.as_str()))
                 .unwrap_or("");
             if !text.trim().is_empty() {
+                let key = codex_user_key(text);
+                // 主通道采信：撤销 pending 中同文本的兜底事件（双通道去重）
+                user_pending.retain(|(k, _)| k != &key);
+                user_seen.insert(key);
                 events.push(build_event(
                     "codex",
                     ts,
@@ -322,12 +331,35 @@ fn codex_handle_line(
             if payload.get("type").and_then(|t| t.as_str()) != Some("message") {
                 return; // function_call 等其它 item 不关心
             }
-            if payload.get("role").and_then(|r| r.as_str()) != Some("assistant") {
-                return; // role=user/developer：harness 注入噪音，跳过
+            let role = payload.get("role").and_then(|r| r.as_str()).unwrap_or("");
+            if role != "assistant" && role != "user" {
+                return; // developer=基础指令注入，跳过
             }
             let Some(items) = payload.get("content").and_then(|c| c.as_array()) else {
                 return;
             };
+            if role == "user" {
+                // 兜底通道：input_text 过滤注入前缀；已被 user_message 覆盖的跳过，其余 pending
+                let parts: Vec<&str> = items
+                    .iter()
+                    .filter(|it| it.get("type").and_then(|t| t.as_str()) == Some("input_text"))
+                    .filter_map(|it| it.get("text").and_then(|t| t.as_str()))
+                    .collect();
+                let text = parts.join("\n");
+                let t = text.trim_start();
+                if t.is_empty() || codex_is_injected(t) {
+                    return;
+                }
+                let key = codex_user_key(&text);
+                if user_seen.contains(&key) {
+                    return; // user_message 先到（罕见顺序），已收录
+                }
+                user_pending.push((
+                    key,
+                    build_event("codex", ts, cwd_state, None, "human_prompt", truncate_chars(&text, 200), None),
+                ));
+                return;
+            }
             let parts: Vec<&str> = items
                 .iter()
                 .filter(|it| it.get("type").and_then(|t| t.as_str()) == Some("output_text"))
@@ -348,6 +380,26 @@ fn codex_handle_line(
         }
         _ => {} // 未知类型忽略（不计数，防版本漂移误报坏行）
     }
+}
+
+/// Codex 用户输入去重键：压空白归一化（同一输入在 user_message 与 input_text 两路的
+/// 换行/空白细节可能不一致，2026-09-30 实测文本相同但保守归一）
+fn codex_user_key(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<&str>>().join(" ")
+}
+
+/// Codex harness 注入判定（实测形态白名单前缀；未知 <xxx> 不拦——宁多采，
+/// 噪音三通道在整合侧兜底）
+fn codex_is_injected(t: &str) -> bool {
+    const INJECTED: [&str; 6] = [
+        "<environment_context>",
+        "<user_instructions>",
+        "<skills_instructions>",
+        "<system_warning>",
+        "<turn_aborted>",
+        "# AGENTS.md",
+    ];
+    INJECTED.iter().any(|tag| t.starts_with(tag))
 }
 
 /// 水位线续读时的 Codex 头部 cwd 嗅探：读文件头 64KB，取「起始字节在 from_byte 之前」的
@@ -435,6 +487,9 @@ fn parse_file(path: &str, from_byte: u64) -> Result<AiParseResult, String> {
     } else {
         String::new()
     };
+    // Codex 用户输入双通道去重状态：pending=兜底通道待定事件，seen=主通道已采信文本
+    let mut user_pending: Vec<(String, AiEvent)> = Vec::new();
+    let mut user_seen: HashSet<String> = HashSet::new();
     for line in content.lines() {
         let line = line.trim();
         if line.is_empty() {
@@ -452,7 +507,7 @@ fn parse_file(path: &str, from_byte: u64) -> Result<AiParseResult, String> {
             continue; // 无有效时间戳（真实数据 user/assistant 行恒有），跳过不计数
         };
         if provider == "codex" {
-            codex_handle_line(&v, ts, &mut cwd_state, &mut events, &mut assistant_buf);
+            codex_handle_line(&v, ts, &mut cwd_state, &mut events, &mut assistant_buf, &mut user_pending, &mut user_seen);
             continue;
         }
         if v.get("isSidechain").and_then(|b| b.as_bool()).unwrap_or(false) {
@@ -486,6 +541,8 @@ fn parse_file(path: &str, from_byte: u64) -> Result<AiParseResult, String> {
     // assistant_tail 只保留末 3 条（时间戳最大的 3 条语义：JSONL 按时间追加，末 3 条即最大）
     let skip = assistant_buf.len().saturating_sub(3);
     events.extend(assistant_buf.into_iter().skip(skip));
+    // Codex 兜底通道 flush：exec 模式（无 event_msg.user_message）的用户输入在此收录
+    events.extend(user_pending.into_iter().map(|(_, e)| e));
     // 稳定排序：同 ts 保持文件内出现顺序
     events.sort_by(|a, b| a.ts.cmp(&b.ts));
     Ok(AiParseResult {
@@ -1208,6 +1265,51 @@ mod tests {
         assert_eq!(r2.events.len(), 2);
         assert!(r2.events.iter().all(|e| e.cwd == "/Users/xdd/dev/projB"));
         assert!(r2.events.iter().any(|e| e.kind == "human_prompt" && e.text == "继续，改扫描层"));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Codex exec/交互双模式用户输入：exec（无 user_message 行）的 role=user input_text 兜底收录；
+    /// 交互模式同文本双通道只留 user_message 版；AGENTS.md/environment_context 注入前缀过滤
+    #[test]
+    fn test_codex_user_dual_channel() {
+        let base = write_dir("codexdual");
+        let sess = base.join(".codex/sessions/2026/09/30");
+        std::fs::create_dir_all(&sess).unwrap();
+        // ── 会话 A：exec 模式（originator=codex_exec，无 event_msg.user_message）
+        let meta_a = json!({"timestamp":"2026-09-30T01:00:00.000Z","type":"session_meta",
+            "payload":{"cwd":"/Users/xdd/dev/projA","originator":"codex_exec"}});
+        let agents = json!({"timestamp":"2026-09-30T01:00:05.000Z","type":"response_item",
+            "payload":{"type":"message","role":"user","content":[
+                {"type":"input_text","text":"# AGENTS.md instructions for /Users/xdd\n\n<INSTRUCTIONS>…"}]}});
+        let env = json!({"timestamp":"2026-09-30T01:00:06.000Z","type":"response_item",
+            "payload":{"type":"message","role":"user","content":[
+                {"type":"input_text","text":"<environment_context>\n  <cwd>/Users/xdd</cwd>"}]}});
+        let human_a = json!({"timestamp":"2026-09-30T01:01:00.000Z","type":"response_item",
+            "payload":{"type":"message","role":"user","content":[
+                {"type":"input_text","text":"跑一遍冒烟测试"}]}});
+        let pa = sess.join("rollout-exec.jsonl");
+        std::fs::write(&pa, format!("{meta_a}\n{agents}\n{env}\n{human_a}\n")).unwrap();
+        let ra = parse_file(&pa.to_string_lossy(), 0).unwrap();
+        let humans_a: Vec<&AiEvent> = ra.events.iter().filter(|e| e.kind == "human_prompt").collect();
+        assert_eq!(humans_a.len(), 1, "exec 模式：注入×2 滤掉、真人输入兜底收录");
+        assert_eq!(humans_a[0].text, "跑一遍冒烟测试");
+        assert_eq!(humans_a[0].cwd, "/Users/xdd/dev/projA");
+
+        // ── 会话 B：交互模式（双通道同文本 → 只留 user_message 版；response_item 在前）
+        let meta_b = json!({"timestamp":"2026-09-30T02:00:00.000Z","type":"session_meta",
+            "payload":{"cwd":"/Users/xdd/dev/projB"}});
+        let ri_user = json!({"timestamp":"2026-09-30T02:01:00.000Z","type":"response_item",
+            "payload":{"type":"message","role":"user","content":[
+                {"type":"input_text","text":"帮我\n重构解析器"}]}});
+        let ev_user = json!({"timestamp":"2026-09-30T02:01:01.000Z","type":"event_msg",
+            "payload":{"type":"user_message","message":"帮我 重构解析器"}});
+        let pb = sess.join("rollout-interactive.jsonl");
+        std::fs::write(&pb, format!("{meta_b}\n{ri_user}\n{ev_user}\n")).unwrap();
+        let rb = parse_file(&pb.to_string_lossy(), 0).unwrap();
+        let humans_b: Vec<&AiEvent> = rb.events.iter().filter(|e| e.kind == "human_prompt").collect();
+        assert_eq!(humans_b.len(), 1, "双通道同文本（空白差异归一）只留一条");
+        assert_eq!(humans_b[0].text, "帮我 重构解析器"); // user_message 版本胜出
+
         let _ = std::fs::remove_dir_all(&base);
     }
 
