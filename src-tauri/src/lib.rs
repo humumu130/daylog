@@ -3,6 +3,8 @@
 //  - 插件注册（store / clipboard / notification / global-shortcut / autostart）
 //  - 系统托盘（左键切换主窗口；右键菜单）
 // 热键注册、窗口控制、数据库 CRUD 均由前端 Tauri API 完成，便于配置与类型安全。
+use tauri::Manager;
+
 mod ai_scan;
 mod commands;
 mod db;
@@ -42,6 +44,11 @@ pub fn run() {
             ai_scan::discover_repos,
         ])
         .setup(|app| {
+            // 数据目录预建：plugin-sql 首次连接建库前目录必须存在（其 connect 内部也会
+            // create_dir_all，但 setup 先行一次，消除首启多窗口并发时的目录竞态窗口）
+            if let Ok(dir) = app.path().app_data_dir() {
+                let _ = std::fs::create_dir_all(&dir);
+            }
             // 开机自启插件（仅桌面端），启用/禁用由前端控制
             #[cfg(desktop)]
             {

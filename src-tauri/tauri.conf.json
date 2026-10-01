@@ -50,6 +50,11 @@
       "csp": null
     }
   },
+  "plugins": {
+    "sql": {
+      "preload": ["sqlite:worklog.db"]
+    }
+  },
   "bundle": {
     "active": true,
     "publisher": "humumu",

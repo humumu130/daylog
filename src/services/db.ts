@@ -22,9 +22,35 @@ import type {
 export const DEFAULT_WORKSPACE_ID = 'work';
 
 let _db: Database | null = null;
+let _dbPromise: Promise<Database> | null = null;
 async function db(): Promise<Database> {
-  if (!_db) _db = await Database.load('sqlite:worklog.db');
-  return _db;
+  if (_db) return _db;
+  if (!_dbPromise) {
+    _dbPromise = (async () => {
+      let lastErr: unknown;
+      for (let i = 0; i < 5; i++) {
+        try {
+          _db = await Database.load('sqlite:worklog.db');
+          return _db;
+        } catch (e) {
+          lastErr = e;
+          // 首启多窗口并发建库竞态（plugin-sql 的 connect 在池锁外，db 不存在时
+          // 两路同时 create_database 可撞 SQLITE_CANTOPEN/BUSY）。Rust 侧 preload
+          // 已根治主体；此处单飞 + 可重试错误 backoff 兜住残余窗口。
+          const msg = String(e);
+          if (!/code: 14|code: 5|unable to open|database is locked|database is busy/i.test(msg)) {
+            throw e;
+          }
+          await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+        }
+      }
+      throw lastErr;
+    })();
+    _dbPromise.catch(() => {
+      _dbPromise = null; // 失败清缓存，下次调用可重进
+    });
+  }
+  return _dbPromise;
 }
 
 function safeParseArr(s: string): string[] {
